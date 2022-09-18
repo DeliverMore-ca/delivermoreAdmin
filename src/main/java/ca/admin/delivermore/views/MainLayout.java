@@ -2,24 +2,22 @@ package ca.admin.delivermore.views;
 
 import ca.admin.delivermore.components.appnav.AppNav;
 import ca.admin.delivermore.components.appnav.AppNavItem;
+import ca.admin.delivermore.components.appnav.BrandExpression;
 import ca.admin.delivermore.data.entity.User;
 import ca.admin.delivermore.security.AuthenticatedUser;
 import ca.admin.delivermore.views.about.AboutView;
+import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import ca.admin.delivermore.views.drivers.DriversView;
 import ca.admin.delivermore.views.home.HomeView;
 import ca.admin.delivermore.views.orders.OrdersView;
+import ca.admin.delivermore.views.tasks.TasksView;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.avatar.Avatar;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
-import com.vaadin.flow.component.html.Anchor;
-import com.vaadin.flow.component.html.Footer;
-import com.vaadin.flow.component.html.H1;
-import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.Header;
-import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.server.auth.AccessAnnotationChecker;
 import java.util.Optional;
@@ -37,6 +35,9 @@ public class MainLayout extends AppLayout {
     public MainLayout(AuthenticatedUser authenticatedUser, AccessAnnotationChecker accessChecker) {
         this.authenticatedUser = authenticatedUser;
         this.accessChecker = accessChecker;
+
+        //TODO: load data from Tookan and then save to the TaskDetailRepository
+        //create a method that provides a TaskEntity for each Task
 
         setPrimarySection(Section.DRAWER);
         addToNavbar(true, createHeaderContent());
@@ -58,11 +59,8 @@ public class MainLayout extends AppLayout {
     }
 
     private Component createDrawerContent() {
-        H2 appName = new H2("DeliverMore");
-        appName.addClassNames("app-name");
-
-        com.vaadin.flow.component.html.Section section = new com.vaadin.flow.component.html.Section(appName,
-                createNavigation(), createFooter());
+        String text = "DeliverMore";
+        com.vaadin.flow.component.html.Section section = new com.vaadin.flow.component.html.Section(new BrandExpression(text),createNavigation(), createFooter());
         section.addClassNames("drawer-section");
         return section;
     }
@@ -79,6 +77,14 @@ public class MainLayout extends AppLayout {
         }
         if (accessChecker.hasAccess(AboutView.class)) {
             nav.addItem(new AppNavItem("About", AboutView.class, "la la-file"));
+
+        }
+        if (accessChecker.hasAccess(TasksView.class)) {
+            nav.addItem(new AppNavItem("Tasks", TasksView.class, "la la-columns"));
+
+        }
+        if (accessChecker.hasAccess(DriverPayoutView.class)) {
+            nav.addItem(new AppNavItem("Driver Payouts", DriverPayoutView.class, "la la-columns"));
 
         }
         if (accessChecker.hasAccess(OrdersView.class)) {
