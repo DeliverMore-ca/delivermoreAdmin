@@ -54,6 +54,8 @@ public class DataGenerator {
                     "https://images.unsplash.com/photo-1607746882042-944635dfe10e?ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&ixlib=rb-1.2.1&auto=format&fit=crop&w=128&h=128&q=80");
             admin.setRoles(Set.of(Role.USER, Role.ADMIN));
             userRepository.save(admin);
+
+            /*
             logger.info("... generating 100 Orders entities...");
             ExampleDataGenerator<Orders> ordersRepositoryGenerator = new ExampleDataGenerator<>(Orders.class,
                     LocalDateTime.of(2022, 8, 17, 0, 0, 0));
@@ -67,8 +69,8 @@ public class DataGenerator {
             ordersRepositoryGenerator.setData(Orders::setCountry, DataType.COUNTRY);
             ordersRepositoryGenerator.setData(Orders::setSubtotal, DataType.NUMBER_UP_TO_100);
             ordersRepository.saveAll(ordersRepositoryGenerator.create(100, seed));
-
             logger.info("Generated demo data");
+             */
 
             //TODO: Build the Restaurant list - later change this to a database table
             restaurantRepository.save(new Restaurant(402970L, "A&W", 0.1, 551118L));
@@ -108,8 +110,8 @@ public class DataGenerator {
             driversRepository.saveAll(drivers);
 
             //TODO:get tasks from tookan since the last date - change later
-            //List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.parse("2022-08-14") );
-            List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.now() );
+            List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.parse("2022-08-15") );
+            //List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.now() );
             List<TaskEntity> taskEntityList = new ArrayList<>();
             List<DriverPayoutEntity> driverPayoutEntities = new ArrayList<>();
             for (TaskDetail taskDetail: taskDetailList) {

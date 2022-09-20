@@ -4,14 +4,29 @@ import com.opencsv.bean.CsvBindByName;
 import com.opencsv.bean.CsvDate;
 
 import javax.persistence.Entity;
+import javax.persistence.Id;
 import javax.persistence.Lob;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
-public class TaskEntity extends AbstractEntity{
+public class TaskEntity{
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TaskEntity that = (TaskEntity) o;
+        return Objects.equals(jobId, that.jobId) && Objects.equals(restaurantName, that.restaurantName) && Objects.equals(jobStatusName, that.jobStatusName) && Objects.equals(customerUsername, that.customerUsername) && Objects.equals(completedDate, that.completedDate) && Objects.equals(creationDate, that.creationDate) && Objects.equals(tip, that.tip) && Objects.equals(notes, that.notes) && Objects.equals(tipInNotesIssue, that.tipInNotesIssue) && Objects.equals(templateId, that.templateId) && Objects.equals(jobStatus, that.jobStatus) && Objects.equals(restaurantId, that.restaurantId) && Objects.equals(customerEmail, that.customerEmail) && Objects.equals(customerId, that.customerId) && Objects.equals(customerPhone, that.customerPhone) && Objects.equals(jobAddress, that.jobAddress) && Objects.equals(jobDescription, that.jobDescription) && Objects.equals(paymentMethod, that.paymentMethod) && Objects.equals(receiptTotal, that.receiptTotal) && Objects.equals(paidToVendor, that.paidToVendor) && Objects.equals(deliveryFee, that.deliveryFee) && Objects.equals(serviceFeePercent, that.serviceFeePercent) && Objects.equals(serviceFee, that.serviceFee) && Objects.equals(totalFees, that.totalFees) && Objects.equals(driverPay, that.driverPay) && Objects.equals(feeBalance, that.feeBalance) && Objects.equals(totalSale, that.totalSale) && Objects.equals(dispatcherId, that.dispatcherId) && Objects.equals(teamId, that.teamId) && Objects.equals(fleetId, that.fleetId) && Objects.equals(fleetName, that.fleetName) && Objects.equals(formId, that.formId) && Objects.equals(jobLatitude, that.jobLatitude) && Objects.equals(jobLongitude, that.jobLongitude) && Objects.equals(orderId, that.orderId) && Objects.equals(autoAssignment, that.autoAssignment) && Objects.equals(userId, that.userId) && Objects.equals(createdBy, that.createdBy) && Objects.equals(globalSubtotal, that.globalSubtotal) && Objects.equals(globalTotalTaxes, that.globalTotalTaxes) && Objects.equals(commission, that.commission) && Objects.equals(totalIncome, that.totalIncome) && Objects.equals(deliveryFeeFromVendor, that.deliveryFeeFromVendor) && Objects.equals(driverIncome, that.driverIncome) && Objects.equals(driverCash, that.driverCash) && Objects.equals(driverPayout, that.driverPayout);
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobId, restaurantName, jobStatusName, customerUsername, completedDate, creationDate, tip, notes, tipInNotesIssue, templateId, jobStatus, restaurantId, customerEmail, customerId, customerPhone, jobAddress, jobDescription, paymentMethod, receiptTotal, paidToVendor, deliveryFee, serviceFeePercent, serviceFee, totalFees, driverPay, feeBalance, totalSale, dispatcherId, teamId, fleetId, fleetName, formId, jobLatitude, jobLongitude, orderId, autoAssignment, userId, createdBy, globalSubtotal, globalTotalTaxes, commission, totalIncome, deliveryFeeFromVendor, driverIncome, driverCash, driverPayout);
+    }
+
+    @Id
     @CsvBindByName(column = "jobId")
     private Long jobId = 0L;
 

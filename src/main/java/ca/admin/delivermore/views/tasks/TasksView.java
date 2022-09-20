@@ -9,13 +9,17 @@ import com.opencsv.bean.StatefulBeanToCsv;
 import com.opencsv.bean.StatefulBeanToCsvBuilder;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
+import com.vaadin.componentfactory.DateRange;
+import com.vaadin.componentfactory.EnhancedDateRangePicker;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.ComponentEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Main;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
@@ -28,7 +32,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.stream.Stream;
 
 @PageTitle("Tasks")
@@ -37,8 +43,7 @@ import java.util.stream.Stream;
 public class TasksView extends Main {
     private Grid<TaskEntity> tasksGrid = new Grid<>(TaskEntity.class);
     private TextField filterText = new TextField();
-    private DatePicker fromDatePicker = new DatePicker("From Date:");
-    private DatePicker toDatePicker = new DatePicker("To Date:");
+    private EnhancedDateRangePicker rangeDatePicker = new EnhancedDateRangePicker("Select range:");
     private TaskDetailService service;
     private TaskForm form;
     private String[] columns;
@@ -131,7 +136,22 @@ public class TasksView extends Main {
     private void configureForm() {
         form = new TaskForm();
         form.setWidth("25em");
+        form.addListener(TaskForm.SaveEvent.class,this::saveTask);
+        form.addListener(TaskForm.DeleteEvent.class,this::deleteTask);
+        form.addListener(TaskForm.CloseEvent.class,e -> closeEditor());
 
+    }
+
+    private void saveTask(TaskForm.SaveEvent event) {
+        service.saveTaskDetail(event.getTaskEntity());
+        updateList();
+        closeEditor();
+    }
+
+    private void deleteTask(TaskForm.DeleteEvent event) {
+        service.deleteTaskDetail(event.getTaskEntity());
+        updateList();
+        closeEditor();
     }
 
     private HorizontalLayout getToolbar() {
@@ -172,30 +192,31 @@ public class TasksView extends Main {
 
         LocalDate defaultDate = LocalDate.parse("2022-08-14");
         //TODO: get the date from the database for the largest task date and add 1 to set the defaultFromDate
-        LocalDate defaultFromDate = defaultDate;
-        LocalDate defaultToDate = defaultDate;
 
-        DatePicker.DatePickerI18n singleFormatI18n = new DatePicker.DatePickerI18n();
-        singleFormatI18n.setDateFormat("yyyy-MM-dd");
+        //get lastWeek as the default for the range picker
+        LocalDate nowDate = LocalDate.now();
+        LocalDate prevSun = nowDate.with(TemporalAdjusters.previous(DayOfWeek.SUNDAY));
+        prevSun = nowDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
+        LocalDate startOfLastWeek = prevSun.minusWeeks(1);
+        LocalDate endOfLastWeek = startOfLastWeek.plusDays(6);
 
-        fromDatePicker.setI18n(singleFormatI18n);
-        fromDatePicker.setMin(defaultDate);
-        fromDatePicker.setValue(defaultFromDate);
-        toDatePicker.setI18n(singleFormatI18n);
-        toDatePicker.setMin(defaultDate);
-        toDatePicker.setValue(defaultToDate);
-
-        LocalDate fromDate = fromDatePicker.getValue();
-        LocalDate toDate = toDatePicker.getValue();
+        rangeDatePicker.setMin(defaultDate);
+        rangeDatePicker.setValue(new DateRange(startOfLastWeek,endOfLastWeek));
 
         // Fetch all entities and show
         final Button fetchTasks = new Button("Fetch tasks",
-                e -> tasksGrid.setItems(service.findAllTaskDetails(fromDatePicker.getValue().atStartOfDay(),toDatePicker.getValue().atTime(23,59,59))));
+                e -> updateList()
+        );
         fetchTasks.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, filterText, fromDatePicker, toDatePicker, addContactButton, downloadButton);
+        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, filterText, rangeDatePicker, addContactButton, downloadButton);
+        toolbar.setAlignItems(FlexComponent.Alignment.BASELINE);
         toolbar.addClassName("toolbar");
         return toolbar;
+    }
+
+    private void updateList() {
+        tasksGrid.setItems(service.findAllTaskDetails(rangeDatePicker.getValue().getStartDate().atStartOfDay(),rangeDatePicker.getValue().getEndDate().atTime(23,59,59)));
     }
 
 

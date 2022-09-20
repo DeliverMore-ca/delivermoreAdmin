@@ -11,7 +11,7 @@
 
     <properties>
         <java.version>11</java.version>
-        <vaadin.version>23.1.6</vaadin.version>
+        <vaadin.version>23.2.1</vaadin.version>
         <selenium.version>4.2.1</selenium.version>
     </properties>
 
@@ -101,7 +101,12 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
-
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-maven-plugin</artifactId>
+            <version>${vaadin.version}</version>
+            <type>maven-plugin</type>
+        </dependency>
         <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>exampledata</artifactId>
@@ -137,6 +142,11 @@
             <artifactId>opencsv</artifactId>
             <version>5.6</version>
         </dependency>
+        <dependency>
+            <groupId>com.vaadin.componentfactory</groupId>
+            <artifactId>vcf-date-range-picker</artifactId>
+            <version>3.0.2</version>
+        </dependency>
         <!-- Include JUnit 4 support for TestBench and others -->
         <dependency>
             <groupId>org.junit.vintage</groupId>
@@ -154,6 +164,12 @@
             <artifactId>webdrivermanager</artifactId>
             <version>5.1.1</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>3.0.0-M7</version>
+            <type>maven-plugin</type>
         </dependency>
     </dependencies>
 

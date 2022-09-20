@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Generated;
 import javax.persistence.Entity;
+import javax.persistence.Id;
 import javax.persistence.OneToOne;
 
 import ca.admin.delivermore.data.entity.AbstractEntity;
@@ -42,9 +43,10 @@ import com.fasterxml.jackson.annotation.*;
 @Generated("jsonschema2pojo")
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Entity
-public class Driver extends AbstractEntity {
+public class Driver {
 
     @JsonProperty("fleet_id")
+    @Id
     private Long fleetId;
     @JsonProperty("device_type")
     private Long deviceType;

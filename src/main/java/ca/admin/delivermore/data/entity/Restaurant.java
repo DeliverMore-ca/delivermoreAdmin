@@ -1,10 +1,11 @@
 package ca.admin.delivermore.data.entity;
 
 import javax.persistence.Entity;
+import javax.persistence.Id;
 import javax.validation.constraints.NotEmpty;
 
 @Entity
-public class Restaurant extends AbstractEntity{
+public class Restaurant{
 
     public Restaurant() {
         super();
@@ -50,6 +51,7 @@ public class Restaurant extends AbstractEntity{
 
 
     //@NotEmpty
+    @Id
     private Long restaurantId;
 
     @NotEmpty

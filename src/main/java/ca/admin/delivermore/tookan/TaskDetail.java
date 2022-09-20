@@ -763,7 +763,9 @@ public class TaskDetail {
                 Long tOrderId = Long.valueOf(orderId);
                 OrderDetail orderDetail = orderDetailRepository.findOrderDetailByOrderId(tOrderId);
                 if(orderDetail!=null){
-                    taskEntity.setPaymentMethod(orderDetail.getPaymentMethod());
+                    if(taskEntity.getPaymentMethod()==null || taskEntity.getPaymentMethod().isEmpty()){
+                        taskEntity.setPaymentMethod(orderDetail.getPaymentMethod());
+                    }
                     taskEntity.setGlobalSubtotal(orderDetail.getSubtotal());
                     taskEntity.setGlobalTotalTaxes(orderDetail.getTotalTaxes());
                     taskEntity.setServiceFee(orderDetail.getServiceFee());
@@ -771,7 +773,7 @@ public class TaskDetail {
                     //taskEntity.setTotalSale(orderDetail.getTotal());
                     taskEntity.setTotalSale(round(orderDetail.getSubtotal() + orderDetail.getTotalTaxes() + orderDetail.getDeliveryFee() + orderDetail.getServiceFee(),2));
                 }else{
-                    System.out.println("getTaskEntity: orderDetail was null for orderId:" + tOrderId);
+                    System.out.println("getTaskEntity: jobId:" + jobId + " orderDetail was null for orderId:" + tOrderId);
                     skipGlobal = Boolean.TRUE;
                     taskEntity.setTotalSale(0.0);
                     taskEntity.setGlobalSubtotal(0.0);
