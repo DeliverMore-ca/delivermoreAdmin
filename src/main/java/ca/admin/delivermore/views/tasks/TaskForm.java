@@ -1,6 +1,6 @@
 package ca.admin.delivermore.views.tasks;
 
-import ca.admin.delivermore.data.entity.TaskEntity;
+import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEvent;
 import com.vaadin.flow.component.ComponentEventListener;

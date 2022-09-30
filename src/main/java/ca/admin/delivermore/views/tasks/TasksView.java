@@ -1,7 +1,7 @@
 package ca.admin.delivermore.views.tasks;
 
-import ca.admin.delivermore.data.entity.TaskEntity;
-import ca.admin.delivermore.data.service.RestaurantService;
+import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.data.service.TaskDetailService;
 import ca.admin.delivermore.views.MainLayout;
 import com.opencsv.bean.HeaderColumnNameMappingStrategy;
@@ -12,10 +12,8 @@ import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import com.vaadin.componentfactory.DateRange;
 import com.vaadin.componentfactory.EnhancedDateRangePicker;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.ComponentEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Main;
@@ -93,6 +91,7 @@ public class TasksView extends Main {
                 "tipInNotesIssue",
                 "notes",
                 "commission",
+                "commissionRate",
                 "totalIncome",
                 "templateId",
                 "dispatcherId",
@@ -108,6 +107,9 @@ public class TasksView extends Main {
                 "orderId",
                 "autoAssignment",
                 "userId",
+                "sourceId",
+                "source",
+                "lastUpdated",
                 "createdBy"};
 
         columnsUpper = columns.clone();
@@ -216,7 +218,14 @@ public class TasksView extends Main {
     }
 
     private void updateList() {
-        tasksGrid.setItems(service.findAllTaskDetails(rangeDatePicker.getValue().getStartDate().atStartOfDay(),rangeDatePicker.getValue().getEndDate().atTime(23,59,59)));
+        LocalDate startDate = rangeDatePicker.getValue().getStartDate();
+        LocalDate endDate = rangeDatePicker.getValue().getEndDate();
+        if(endDate==null){
+            endDate = startDate;
+        }
+        System.out.println("updateList: start:" + startDate + " end:" + endDate);
+        //TODO: check end date for null and set to start
+        tasksGrid.setItems(service.findAllTaskDetails(startDate.atStartOfDay(),endDate.atTime(23,59,59)));
     }
 
 

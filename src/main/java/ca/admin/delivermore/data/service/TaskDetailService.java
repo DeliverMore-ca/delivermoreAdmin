@@ -1,6 +1,8 @@
 package ca.admin.delivermore.data.service;
 
-import ca.admin.delivermore.data.entity.TaskEntity;
+import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
+import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,6 +26,17 @@ public class TaskDetailService {
         } else {
             System.out.println("findAllTaskDetails: running search using passed in dates");
             return taskDetailRepository.search(fromDate, toDate);
+        }
+    }
+
+    public List<DriverPayoutEntity> findAllDriverPayouts(LocalDateTime fromDate, LocalDateTime toDate) {
+        System.out.println("findAllDriverPayouts: from:" + fromDate + " to:" + toDate);
+        if (fromDate == null || toDate == null) {
+            System.out.println("findAllDriverPayouts: running search with default dates");
+            return taskDetailRepository.getDriverPayout(LocalDateTime.parse("2022-08-14T00:00:00"), LocalDateTime.parse("2022-08-14T23:59:59"));
+        } else {
+            System.out.println("findAllDriverPayouts: running search using passed in dates");
+            return taskDetailRepository.getDriverPayout(fromDate, toDate);
         }
     }
 
