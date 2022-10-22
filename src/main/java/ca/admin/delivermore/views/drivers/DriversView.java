@@ -1,159 +1,104 @@
 package ca.admin.delivermore.views.drivers;
 
+import ca.admin.delivermore.collector.config.BatchConfigDrivers;
+import ca.admin.delivermore.collector.data.service.DriversRepository;
+import ca.admin.delivermore.collector.data.service.RestClientService;
+import ca.admin.delivermore.collector.data.tookan.Driver;
 import ca.admin.delivermore.views.MainLayout;
-import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.router.AfterNavigationEvent;
-import com.vaadin.flow.router.AfterNavigationObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import java.util.Arrays;
+import com.vaadin.flow.server.auth.AnonymousAllowed;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.vaadin.crudui.crud.CrudOperation;
+import org.vaadin.crudui.crud.impl.GridCrud;
+
 import java.util.List;
-import javax.annotation.security.PermitAll;
+
 
 @PageTitle("Drivers")
 @Route(value = "drivers", layout = MainLayout.class)
-@PermitAll
-public class DriversView extends Div implements AfterNavigationObserver {
+@AnonymousAllowed
+public class DriversView extends VerticalLayout {
 
-    Grid<Person> grid = new Grid<>();
+    RestClientService restClientService;
+    DriversRepository driversRepository;
 
-    public DriversView() {
-        addClassName("drivers-view");
+    public DriversView(DriversRepository driversRepository, RestClientService restClientService) {
+        this.driversRepository = driversRepository;
+        this.restClientService = restClientService;
+        // crud instance
+        GridCrud<Driver> crud = new GridCrud<>(Driver.class);
+
+        // grid configuration
+        //crud.getGrid().setColumns("fleetId", "isActive", "username", "name", "loginId", "email", "phone");
+        crud.getGrid().removeAllColumns();
+        crud.getGrid().addColumn(Driver::getName).setHeader("Name");
+        crud.getGrid().addColumn(Driver::getIsActivePresentation).setHeader("IsActive");
+        crud.getGrid().addColumn(Driver::getEmail).setHeader("Email");
+        crud.getGrid().addColumn(Driver::getPhone).setHeader("Phone");
+        crud.getGrid().addColumn(Driver::getUsername).setHeader("Username");
+        crud.getGrid().addColumn(Driver::getLoginId).setHeader("LoginId");
+        crud.getGrid().addColumn(Driver::getFleetId).setHeader("FleetId");
+        crud.getGrid().setColumnReorderingAllowed(true);
+
+        //Enable/Disable operations
+        crud.setAddOperationVisible(false);
+        crud.setDeleteOperationVisible(false);
+        crud.setUpdateOperationVisible(true);
+        crud.setFindAllOperationVisible(false);
+
+        Button refreshFromTookanButton = new Button("Refresh from Tookan");
+        refreshFromTookanButton.setDisableOnClick(true);
+        refreshFromTookanButton.addClickListener(e -> {
+            refreshDrivers();
+            crud.refreshGrid();
+            refreshFromTookanButton.setEnabled(true);
+        });
+        crud.getCrudLayout().addToolbarComponent(refreshFromTookanButton);
+        //crud.setUpdateButtonColumnEnabled(true);
+
+        // form configuration
+        crud.getCrudFormFactory().setUseBeanValidation(true);
+        crud.getCrudFormFactory().setVisibleProperties(
+                "fleetId", "isActive", "username", "name", "loginId", "email", "phone");
+        crud.getCrudFormFactory().setVisibleProperties(
+                CrudOperation.UPDATE,
+                "isActive", "username", "name", "loginId", "email", "phone");
+
+        crud.getGrid().getColumns().forEach(col -> col.setAutoWidth(true));
+        crud.getGrid().addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+
+        // layout configuration
         setSizeFull();
-        grid.setHeight("100%");
-        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_NO_ROW_BORDERS);
-        grid.addComponentColumn(person -> createCard(person));
-        add(grid);
-    }
+        add(crud);
 
-    private HorizontalLayout createCard(Person person) {
-        HorizontalLayout card = new HorizontalLayout();
-        card.addClassName("card");
-        card.setSpacing(false);
-        card.getThemeList().add("spacing-s");
-
-        Image image = new Image();
-        image.setSrc(person.getImage());
-        VerticalLayout description = new VerticalLayout();
-        description.addClassName("description");
-        description.setSpacing(false);
-        description.setPadding(false);
-
-        HorizontalLayout header = new HorizontalLayout();
-        header.addClassName("header");
-        header.setSpacing(false);
-        header.getThemeList().add("spacing-s");
-
-        Span name = new Span(person.getName());
-        name.addClassName("name");
-        Span date = new Span(person.getDate());
-        date.addClassName("date");
-        header.add(name, date);
-
-        Span post = new Span(person.getPost());
-        post.addClassName("post");
-
-        HorizontalLayout actions = new HorizontalLayout();
-        actions.addClassName("actions");
-        actions.setSpacing(false);
-        actions.getThemeList().add("spacing-s");
-
-        Icon likeIcon = VaadinIcon.HEART.create();
-        likeIcon.addClassName("icon");
-        Span likes = new Span(person.getLikes());
-        likes.addClassName("likes");
-        Icon commentIcon = VaadinIcon.COMMENT.create();
-        commentIcon.addClassName("icon");
-        Span comments = new Span(person.getComments());
-        comments.addClassName("comments");
-        Icon shareIcon = VaadinIcon.CONNECT.create();
-        shareIcon.addClassName("icon");
-        Span shares = new Span(person.getShares());
-        shares.addClassName("shares");
-
-        actions.add(likeIcon, likes, commentIcon, comments, shareIcon, shares);
-
-        description.add(header, post, actions);
-        card.add(image, description);
-        return card;
-    }
-
-    @Override
-    public void afterNavigation(AfterNavigationEvent event) {
-
-        // Set some data when this view is displayed.
-        List<Person> persons = Arrays.asList( //
-                createPerson("https://randomuser.me/api/portraits/men/42.jpg", "John Smith", "May 8",
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/42.jpg", "Abagail Libbie", "May 3",
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/men/24.jpg", "Alberto Raya", "May 3",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/24.jpg", "Emmy Elsner", "Apr 22",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/men/76.jpg", "Alf Huncoot", "Apr 21",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/76.jpg", "Lidmila Vilensky", "Apr 17",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/men/94.jpg", "Jarrett Cawsey", "Apr 17",
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/94.jpg", "Tania Perfilyeva", "Mar 8",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/men/16.jpg", "Ivan Polo", "Mar 5",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/16.jpg", "Emelda Scandroot", "Mar 5",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/men/67.jpg", "Marcos Sá", "Mar 4",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20"),
-                createPerson("https://randomuser.me/api/portraits/women/67.jpg", "Jacqueline Asong", "Mar 2",
-
-                        "In publishing and graphic design, Lorem ipsum is a placeholder text commonly used to demonstrate the visual form of a document without relying on meaningful content (also called greeking).",
-                        "1K", "500", "20")
-
+        // logic configuration
+        crud.setOperations(
+                () -> driversRepository.findAll(),
+                driver -> driversRepository.save(driver),
+                driver -> {
+                    /* sample validate on update
+                    if(user.getId().equals(10L)) {
+                        throw new CrudOperationException("Simulated error.");
+                    }
+                     */
+                    return driversRepository.save(driver);
+                },
+                driver -> driversRepository.delete(driver)
         );
-
-        grid.setItems(persons);
     }
 
-    private static Person createPerson(String image, String name, String date, String post, String likes,
-            String comments, String shares) {
-        Person p = new Person();
-        p.setImage(image);
-        p.setName(name);
-        p.setDate(date);
-        p.setPost(post);
-        p.setLikes(likes);
-        p.setComments(comments);
-        p.setShares(shares);
+    private void refreshDrivers(){
+        List<Driver> currentDriverList = restClientService.getAllDrivers();
+        driversRepository.saveAll(currentDriverList);
+        List<Driver> allDriverList = driversRepository.findAll();
+        for (Driver driver : allDriverList) {
+            driver.updateDriverIsActive(driver,currentDriverList);
+        }
 
-        return p;
     }
 
 }

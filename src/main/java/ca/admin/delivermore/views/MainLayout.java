@@ -18,6 +18,7 @@ import com.vaadin.flow.component.avatar.Avatar;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.server.auth.AccessAnnotationChecker;
 import java.util.Optional;
@@ -79,6 +80,10 @@ public class MainLayout extends AppLayout {
             nav.addItem(new AppNavItem("About", AboutView.class, "la la-file"));
 
         }
+        if (accessChecker.hasAccess(DriversView.class)) {
+            nav.addItem(new AppNavItem("Drivers", DriversView.class, "la la-list"));
+
+        }
         if (accessChecker.hasAccess(TasksView.class)) {
             nav.addItem(new AppNavItem("Tasks", TasksView.class, "la la-columns"));
 
@@ -89,10 +94,6 @@ public class MainLayout extends AppLayout {
         }
         if (accessChecker.hasAccess(OrdersView.class)) {
             nav.addItem(new AppNavItem("Orders", OrdersView.class, "la la-columns"));
-
-        }
-        if (accessChecker.hasAccess(DriversView.class)) {
-            nav.addItem(new AppNavItem("Drivers", DriversView.class, "la la-list"));
 
         }
 

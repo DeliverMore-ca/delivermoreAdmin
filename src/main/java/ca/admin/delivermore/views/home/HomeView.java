@@ -2,6 +2,7 @@ package ca.admin.delivermore.views.home;
 
 import ca.admin.delivermore.views.MainLayout;
 import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -17,21 +18,13 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 @AnonymousAllowed
 public class HomeView extends HorizontalLayout {
 
-    private TextField name;
-    private Button sayHello;
-
     public HomeView() {
-        name = new TextField("Your name");
-        sayHello = new Button("Say hello");
-        sayHello.addClickListener(e -> {
-            Notification.show("Hello " + name.getValue());
-        });
-        sayHello.addClickShortcut(Key.ENTER);
+        Text welcomeMessage = new Text("Welcome to DeliverMore Admin application");
 
         setMargin(true);
-        setVerticalComponentAlignment(Alignment.END, name, sayHello);
+        //setVerticalComponentAlignment(Alignment.END, welcomeMessage);
 
-        add(name, sayHello);
+        add(welcomeMessage);
     }
 
 }

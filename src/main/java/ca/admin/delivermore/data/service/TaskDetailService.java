@@ -56,4 +56,16 @@ public class TaskDetailService {
         taskDetailRepository.save(taskEntity);
     }
 
+    public TaskEntity getTaskEntityByJobId(Long jobId){
+        List<TaskEntity> taskEntityList = taskDetailRepository.findByJobId(jobId);
+        if(taskEntityList.size()>0){
+            //return the first - there should only be one for a jobId
+            return taskEntityList.get(0);
+        }else{
+            System.out.println("getTaskEntityByJobId: none found for:" + jobId + " so returning null");
+            return null;
+        }
+
+    }
+
 }

@@ -16,10 +16,12 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Main;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.provider.Query;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -41,6 +43,8 @@ import java.util.stream.Stream;
 public class TasksView extends Main {
     private Grid<TaskEntity> tasksGrid = new Grid<>(TaskEntity.class);
     private TextField filterText = new TextField();
+
+    private Label taskCount = new Label();
     private EnhancedDateRangePicker rangeDatePicker = new EnhancedDateRangePicker("Select range:");
     private TaskDetailService service;
     private TaskForm form;
@@ -211,7 +215,7 @@ public class TasksView extends Main {
         );
         fetchTasks.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, filterText, rangeDatePicker, addContactButton, downloadButton);
+        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, filterText, rangeDatePicker, taskCount, downloadButton);
         toolbar.setAlignItems(FlexComponent.Alignment.BASELINE);
         toolbar.addClassName("toolbar");
         return toolbar;
@@ -226,6 +230,7 @@ public class TasksView extends Main {
         System.out.println("updateList: start:" + startDate + " end:" + endDate);
         //TODO: check end date for null and set to start
         tasksGrid.setItems(service.findAllTaskDetails(startDate.atStartOfDay(),endDate.atTime(23,59,59)));
+        taskCount.setText("(" + tasksGrid.getDataProvider().size(new Query<>()) + " tasks)");
     }
 
 

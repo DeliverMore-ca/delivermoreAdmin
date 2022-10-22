@@ -133,6 +133,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+            <version>2.7.4</version>
+        </dependency>
+        <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-testbench</artifactId>
             <scope>test</scope>
@@ -143,9 +148,14 @@
             <version>5.6</version>
         </dependency>
         <dependency>
+            <groupId>org.vaadin.crudui</groupId>
+            <artifactId>crudui</artifactId>
+            <version>6.2.0</version>
+        </dependency>
+        <dependency>
             <groupId>com.vaadin.componentfactory</groupId>
             <artifactId>vcf-date-range-picker</artifactId>
-            <version>3.0.2</version>
+            <version>4.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
@@ -175,6 +185,31 @@
             <artifactId>maven-failsafe-plugin</artifactId>
             <version>3.0.0-M7</version>
             <type>maven-plugin</type>
+        </dependency>
+        <dependency>
+            <groupId>fr.opensagres.xdocreport</groupId>
+            <artifactId>fr.opensagres.xdocreport.document.docx</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>fr.opensagres.xdocreport</groupId>
+            <artifactId>fr.opensagres.xdocreport.template.velocity</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>fr.opensagres.xdocreport</groupId>
+            <artifactId>fr.opensagres.xdocreport.converter.docx.xwpf</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.olli</groupId>
+            <artifactId>file-download-wrapper</artifactId>
+            <version>5.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons.mekaso</groupId>
+            <artifactId>progress</artifactId>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>ca.admin.delivermore</groupId>
