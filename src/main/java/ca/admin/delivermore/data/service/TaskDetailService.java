@@ -1,7 +1,7 @@
 package ca.admin.delivermore.data.service;
 
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
-import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import org.springframework.stereotype.Service;
 

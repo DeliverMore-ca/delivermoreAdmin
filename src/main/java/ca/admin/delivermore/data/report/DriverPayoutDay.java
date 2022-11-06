@@ -1,7 +1,7 @@
 package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.Utility;
-import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;

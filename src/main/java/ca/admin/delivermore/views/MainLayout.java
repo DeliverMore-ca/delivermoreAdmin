@@ -10,6 +10,8 @@ import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import ca.admin.delivermore.views.drivers.DriversView;
 import ca.admin.delivermore.views.home.HomeView;
 import ca.admin.delivermore.views.orders.OrdersView;
+import ca.admin.delivermore.views.restaurants.RestPayoutView;
+import ca.admin.delivermore.views.restaurants.RestView;
 import ca.admin.delivermore.views.tasks.TasksView;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -18,6 +20,8 @@ import com.vaadin.flow.component.avatar.Avatar;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.server.auth.AccessAnnotationChecker;
@@ -77,19 +81,31 @@ public class MainLayout extends AppLayout {
 
         }
         if (accessChecker.hasAccess(AboutView.class)) {
-            nav.addItem(new AppNavItem("About", AboutView.class, "la la-file"));
+            nav.addItem(new AppNavItem("About", AboutView.class, "la la-question-circle"));
 
         }
+        AppNavItem utilities = new AppNavItem("Utilities");
+        utilities.setIconClass("la la-folder-open");
+        //utilities.setIcon(new Icon(VaadinIcon.FOLDER_OPEN));
+        nav.addItem(utilities);
         if (accessChecker.hasAccess(DriversView.class)) {
-            nav.addItem(new AppNavItem("Drivers", DriversView.class, "la la-list"));
-
+            AppNavItem driversMenu = new AppNavItem("Drivers", DriversView.class, "la la-car-side");
+            utilities.addItem(driversMenu);
+        }
+        if (accessChecker.hasAccess(RestView.class)) {
+            AppNavItem restMenu = new AppNavItem("Restaurants", RestView.class, "la la-store-alt");
+            utilities.addItem(restMenu);
         }
         if (accessChecker.hasAccess(TasksView.class)) {
-            nav.addItem(new AppNavItem("Tasks", TasksView.class, "la la-columns"));
-
+            AppNavItem tasksMenu = new AppNavItem("Tasks(in progress)", TasksView.class, "la la-stack-overflow");
+            utilities.addItem(tasksMenu);
         }
         if (accessChecker.hasAccess(DriverPayoutView.class)) {
-            nav.addItem(new AppNavItem("Driver Payouts", DriverPayoutView.class, "la la-columns"));
+            nav.addItem(new AppNavItem("Driver Payouts", DriverPayoutView.class, "la la-portrait"));
+
+        }
+        if (accessChecker.hasAccess(RestPayoutView.class)) {
+            nav.addItem(new AppNavItem("Restaurant Payouts", RestPayoutView.class, "la la-file-invoice-dollar"));
 
         }
         if (accessChecker.hasAccess(OrdersView.class)) {

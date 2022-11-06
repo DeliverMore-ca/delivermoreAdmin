@@ -1,6 +1,6 @@
 package ca.admin.delivermore.views.tasks;
 
-import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.data.service.TaskDetailService;
 import ca.admin.delivermore.views.MainLayout;

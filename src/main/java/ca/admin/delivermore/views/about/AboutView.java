@@ -30,13 +30,14 @@ public class AboutView extends VerticalLayout {
         add(new H2("DeliverMore Admin Application"));
         add(new Paragraph("DeliverMore.ca is a locally owned and operated online ordering and delivery service"));
 
-        /*
         Button emailButton = new Button("Email test from tara");
         emailButton.addClickListener(e -> {
             System.out.println("TEST sending email");
             emailService.sendMail("usjusjoken@gmail.com", "Test", "testing testing 123");
         });
+        add(emailButton);
 
+        /*
         Button emailButton2 = new Button("Email preconfigured");
         emailButton2.addClickListener(e -> {
             System.out.println("TEST sending email preconfigured to support");

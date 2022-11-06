@@ -4,7 +4,7 @@ import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
 import ca.admin.delivermore.data.entity.DriverAdjustment;
 import ca.admin.delivermore.data.entity.DriverCardTip;
-import ca.admin.delivermore.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
 import ca.admin.delivermore.data.service.Registry;
 

@@ -35,7 +35,7 @@ public class PayoutDocument {
     }
 
     public String getEmailPresentation() {
-        if (emailAddress.isEmpty()){
+        if (emailAddress==null || emailAddress.isEmpty()){
             return "None";
         }
         return emailAddress;
@@ -62,7 +62,7 @@ public class PayoutDocument {
     }
 
     public StreamResource getResource() {
-        System.out.println("getResource: returning resource name:" + resource.getName() + " resource:" + resource.toString());
+        //System.out.println("getResource: returning resource name:" + resource.getName() + " resource:" + resource.toString());
         return resource;
     }
 
