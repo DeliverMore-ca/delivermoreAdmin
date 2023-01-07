@@ -1,5 +1,6 @@
 package ca.admin.delivermore.views;
 
+import ca.admin.delivermore.components.custom.ButtonNumberField;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -32,18 +33,43 @@ public class UIUtilities {
         numberField.setValue(number);
         return numberField;
     }
+
+    public static NumberField getNumberField(Boolean readOnly){
+        return getNumberField("",readOnly,"$");
+    }
+    public static NumberField getNumberField(){
+        return getNumberField("",Boolean.TRUE, "$");
+    }
     public static NumberField getNumberField(String label){
-        Div dollarPrefix = new Div();
-        dollarPrefix.setText("$");
+        return getNumberField(label,Boolean.TRUE, "$");
+    }
+
+    public static NumberField getNumberField(String label, Boolean readOnly, String prefix){
+        Div prefixDiv = new Div();
+        prefixDiv.setText(prefix);
         NumberField numberField = new NumberField();
         if(!label.isEmpty()){
             numberField.setLabel(label);
         }
-        numberField.setReadOnly(true);
-        numberField.setPrefixComponent(dollarPrefix);
+        numberField.setReadOnly(readOnly);
+        numberField.setPrefixComponent(prefixDiv);
         numberField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
         return numberField;
     }
+
+    public static ButtonNumberField getButtonNumberField(String label, Boolean readOnly, String prefix){
+        Div prefixDiv = new Div();
+        prefixDiv.setText(prefix);
+        ButtonNumberField numberField = new ButtonNumberField();
+        if(!label.isEmpty()){
+            numberField.setLabel(label);
+        }
+        numberField.setReadOnly(readOnly);
+        numberField.setPrefixComponent(prefixDiv);
+        numberField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+        return numberField;
+    }
+
 
     public static TextField getTextFieldRO(String label, String text, String width ){
         TextField textField = getTextFieldRO(label,text);
@@ -54,6 +80,16 @@ public class UIUtilities {
         TextField textField = new TextField(label);
         textField.setReadOnly(true);
         textField.setValue(text);
+        textField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+        return textField;
+    }
+
+    public static TextField getTextField(String label){
+        TextField textField = new TextField();
+        if(!label.isEmpty()){
+            textField.setLabel(label);
+        }
+        textField.setReadOnly(false);
         textField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
         return textField;
     }

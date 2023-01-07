@@ -20,6 +20,8 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 
@@ -28,6 +30,7 @@ public class RestPayoutAdjustmentDialog {
         NEW, EDIT, NEW_FIXED_REST, DELETE
     }
     //DriverAdjustmentDialog fields
+    private Logger log = LoggerFactory.getLogger(RestPayoutAdjustmentDialog.class);
     private Dialog dialog = new Dialog();
     private DialogMode dialogMode = DialogMode.EDIT;
     private ComboBox<Restaurant> dialogRestaurant = new ComboBox<>("Restaurant");
@@ -88,7 +91,7 @@ public class RestPayoutAdjustmentDialog {
 
     public void dialogSave() {
         //TODO: process to save adjustments
-        System.out.println("dialogSave:");
+        log.info("dialogSave:");
         if(dialogMode.equals(DialogMode.DELETE)){
             restAdjustmentRepository.delete(selectedRestAdjustment);
             Notification.show("Deleted");
@@ -104,9 +107,9 @@ public class RestPayoutAdjustmentDialog {
             }
             selectedRestAdjustment.setAdjustmentDate(dialogAdjustmentDate.getValue());
             selectedRestAdjustment.setAdjustmentNote(dialogAdjustmentNote.getValue());
-            System.out.println("dialogSave: saving:" + selectedRestAdjustment);
+            log.info("dialogSave: saving:" + selectedRestAdjustment);
             restAdjustmentRepository.save(selectedRestAdjustment);
-            System.out.println("dialogSave: save completed");
+            log.info("dialogSave: save completed");
             String notifyText = "updated";
             if(dialogMode.equals(DialogMode.NEW) || dialogMode.equals(DialogMode.NEW_FIXED_REST)){
                 notifyText = "created";
@@ -135,7 +138,7 @@ public class RestPayoutAdjustmentDialog {
         Boolean fullRefresh = Boolean.FALSE;
         if(daDialogMode.equals(DriverPayoutView.DialogMode.NEW) && !driverPayoutPeriod.getFleetIds().contains(selectedDriverAdjustment.getFleetId())){
             //full page refresh required as the adjustment is for a driver that previously was not listed
-            System.out.println("daDialogSave: new Driver record so refreshing full Driver Payout UI");
+            log.info("daDialogSave: new Driver record so refreshing full Driver Payout UI");
             fullRefresh = Boolean.TRUE;
         }else if(daDialogMode.equals(DriverPayoutView.DialogMode.DELETE)){
             //see if this driver still has a DriverPayoutWeek entry
@@ -154,7 +157,7 @@ public class RestPayoutAdjustmentDialog {
         }
 
         if(fullRefresh){
-            System.out.println("daDialogSave: refreshing full UI");
+            log.info("daDialogSave: refreshing full UI");
             buildDriverPayoutDetails();
         }else{
             refreshDriverPayoutDetails();
@@ -264,7 +267,7 @@ public class RestPayoutAdjustmentDialog {
         }else{
             dialogOkButton.setEnabled(true);
         }
-        System.out.println("dialogValidate: dialogAdjustmentNote: value:" + dialogAdjustmentNote.getValue());
+        log.info("dialogValidate: dialogAdjustmentNote: value:" + dialogAdjustmentNote.getValue());
     }
 
     public DialogMode getDialogMode() {

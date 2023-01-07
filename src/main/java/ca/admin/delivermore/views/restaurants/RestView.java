@@ -1,17 +1,10 @@
 package ca.admin.delivermore.views.restaurants;
 
-import ca.admin.delivermore.collector.data.Config;
-import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.collector.data.entity.Restaurant;
-import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.components.custom.ListEditor;
-import ca.admin.delivermore.data.report.RestPayoutAdjustmentDialog;
 import ca.admin.delivermore.views.MainLayout;
-import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.ShortcutRegistration;
-import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -22,13 +15,13 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextArea;
-import com.vaadin.flow.component.textfield.TextAreaVariant;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 
@@ -56,8 +49,11 @@ public class RestView extends VerticalLayout {
 
     RestaurantRepository restaurantRepository;
 
+    private Logger log = LoggerFactory.getLogger(RestView.class);
+
     public RestView(RestaurantRepository restaurantRepository) {
         this.restaurantRepository = restaurantRepository;
+        log.info("Configuring the dialog");
         dialogConfigure();
 
         grid.removeAllColumns();
@@ -159,7 +155,7 @@ public class RestView extends VerticalLayout {
     }
 
     private void dialogSave() {
-        System.out.println("dialogSave: called for:" + selectedRestaurant.toString());
+        log.info("dialogSave: called for:" + selectedRestaurant.toString());
         selectedRestaurant.setEmail(dialogRestEmailEditor.getValue());
 
         restaurantRepository.save(selectedRestaurant);

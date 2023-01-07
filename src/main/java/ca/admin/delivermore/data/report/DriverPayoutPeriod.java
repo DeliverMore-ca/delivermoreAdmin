@@ -2,22 +2,28 @@ package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
+import ca.admin.delivermore.data.intuit.JournalEntry;
 import ca.admin.delivermore.data.entity.DriverAdjustment;
 import ca.admin.delivermore.data.entity.DriverCardTip;
 import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
 import ca.admin.delivermore.data.service.Registry;
+import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.persistence.*;
 import java.io.File;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.time.temporal.TemporalAdjusters;
+import java.util.*;
 
 @Entity
 @IdClass(DriverPayoutPeriodPk.class)
 public class DriverPayoutPeriod {
+
+    @Transient
+    private Logger log = LoggerFactory.getLogger(DriverPayoutPeriod.class);
 
     @Id
     private String location;
@@ -35,23 +41,52 @@ public class DriverPayoutPeriod {
     private Double driverCash = 0.0;
     private Double driverAdjustment = 0.0;
     private Double driverPayout = 0.0;
+    private Double driverCost = 0.0;
 
     private File pdfFile = null;
     private File csvFile = null;
+    private File journalFile = null;
+    @Transient
+    private List<JournalEntry> journalEntries = new ArrayList<>();
 
     @OneToMany
     private List<DriverPayoutWeek> driverPayoutWeekList = new ArrayList<>();
+    @Transient
+    private Map<Long,DriverPayoutWeek> driverPayoutWeekMap = new TreeMap<>();
+
+    @Transient
+    private Map<Long,DriverPayoutWeek> partMonthDriverPayoutWeekMap = new TreeMap<>();
+    private Double partMonthDriverPay = 0.0;
+    private Double partMonthDriverAdjustments = 0.0;
+    private Double partMonthDriverTips = 0.0;
+    private Double partMonthDriverCash = 0.0;
+    private LocalDate partMonthPayoutPeriodEnd;
+    private Boolean partMonth = Boolean.FALSE;
 
     @OneToMany
     private List<DriverAdjustment> driverAdjustmentList = new ArrayList<>();
 
     @OneToMany
     private List<DriverCardTip> driverCardTipList = new ArrayList<>();
+    @Transient
+    private List<Long> fleetIds = new ArrayList<>();
+
+    private File appPath = new File(System.getProperty("user.dir"));
+    private File outputDir = new File(appPath,"tozip");
 
     public DriverPayoutPeriod(String location, LocalDate payoutPeriodStart, LocalDate payoutPeriodEnd) {
         this.location = location;
         this.payoutPeriodStart = payoutPeriodStart;
         this.payoutPeriodEnd = payoutPeriodEnd;
+
+        //determine if split over 2 months
+        if(payoutPeriodStart.getMonth().equals(payoutPeriodEnd.getMonth())){
+            partMonth = Boolean.FALSE;
+            partMonthPayoutPeriodEnd = payoutPeriodEnd;
+        }else{
+            partMonth = Boolean.TRUE;
+            partMonthPayoutPeriodEnd = payoutPeriodStart.with(TemporalAdjusters.lastDayOfMonth());
+        }
         buildPeriod();
 
     }
@@ -59,8 +94,8 @@ public class DriverPayoutPeriod {
     private void buildPeriod(){
         TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
         //build the driverPayoutWeekList here from a query from TaskDetailRepository
-        System.out.println("DriverPayoutPeriod constructor: payoutPeriodStart" + payoutPeriodStart + " payoutPeriodEnd:" + payoutPeriodEnd);
-        List<Long> fleetIds = taskDetailRepository.findDistinctFleetIdBetweenDates(payoutPeriodStart.atStartOfDay(),payoutPeriodEnd.atTime(23,59,59));
+        log.info("DriverPayoutPeriod constructor: payoutPeriodStart" + payoutPeriodStart + " payoutPeriodEnd:" + payoutPeriodEnd + " partMonthPayoutPeriodEnd:" + partMonthPayoutPeriodEnd);
+        fleetIds = taskDetailRepository.findDistinctFleetIdBetweenDates(payoutPeriodStart.atStartOfDay(),payoutPeriodEnd.atTime(23,59,59));
         //find any fleetIds that only had adjustments - no deliveries
         DriverAdjustmentRepository driverAdjustmentRepository = Registry.getBean(DriverAdjustmentRepository.class);
         List<Long> adjustmentFleetIds = driverAdjustmentRepository.findDistinctFleetIdByAdjustmentDateBetween(payoutPeriodStart,payoutPeriodEnd);
@@ -74,12 +109,15 @@ public class DriverPayoutPeriod {
         //process all fleetId and build the week payout records
         for (Long fleetId: fleetIds) {
             if(fleetId!=null){
-                System.out.println("DriverPayoutPeriod constructor: processing fleetId:" + fleetId);
+                //log.info("DriverPayoutPeriod constructor: processing fleetId:" + fleetId);
+                //TODO:  likely can remove list by using map.values
                 driverPayoutWeekList.add(new DriverPayoutWeek(fleetId, payoutPeriodStart, payoutPeriodEnd));
+                driverPayoutWeekMap.put(fleetId,new DriverPayoutWeek(fleetId, payoutPeriodStart, payoutPeriodEnd));
+                if(partMonth){
+                    partMonthDriverPayoutWeekMap.put(fleetId,new DriverPayoutWeek(fleetId, payoutPeriodStart, partMonthPayoutPeriodEnd));
+                }
             }
         }
-
-        //driverPayoutWeekList.add(new DriverPayoutWeek(1445460L, payoutPeriodStart, payoutPeriodEnd));
 
         for (DriverPayoutWeek driverPayoutWeek: driverPayoutWeekList) {
             this.setTaskCount(this.getTaskCount() + driverPayoutWeek.getTaskCount());
@@ -90,9 +128,19 @@ public class DriverPayoutPeriod {
             this.setDriverCash(this.getDriverCash() + driverPayoutWeek.getDriverCash());
             this.setDriverAdjustment(this.getDriverAdjustment() + driverPayoutWeek.getDriverAdjustment());
             this.setDriverPayout(this.getDriverPayout() + driverPayoutWeek.getDriverPayout());
+            this.setDriverCost(this.getDriverCost() + driverPayoutWeek.getDriverCost());
             this.driverAdjustmentList.addAll(driverPayoutWeek.getDriverAdjustmentList());
-            System.out.println("Adding Driver Card Tip: id:" + driverPayoutWeek.getFleetId() + " cardTip:" + driverPayoutWeek.getCardTip());
+            //log.info("Adding Driver Card Tip: id:" + driverPayoutWeek.getFleetId() + " cardTip:" + driverPayoutWeek.getCardTip());
             this.driverCardTipList.add(new DriverCardTip(driverPayoutWeek.getFleetId(), driverPayoutWeek.getFleetName(),driverPayoutWeek.getCardTip()));
+        }
+
+        if(partMonth){
+            for (DriverPayoutWeek driverPayoutWeek: partMonthDriverPayoutWeekMap.values()) {
+                partMonthDriverPay = partMonthDriverPay + driverPayoutWeek.getDriverPay();
+                partMonthDriverAdjustments = partMonthDriverAdjustments + driverPayoutWeek.getDriverAdjustment();
+                partMonthDriverTips = partMonthDriverTips + driverPayoutWeek.getTip();
+                partMonthDriverCash = partMonthDriverCash + driverPayoutWeek.getDriverCash();
+            }
         }
 
     }
@@ -107,12 +155,16 @@ public class DriverPayoutPeriod {
         this.driverCash = 0.0;
         this.driverAdjustment = 0.0;
         this.driverPayout = 0.0;
+        this.driverCost = 0.0;
         this.driverPayoutWeekList.clear();
         this.driverAdjustmentList.clear();
+        this.partMonthDriverPayoutWeekMap.clear();
+        this.driverPayoutWeekMap.clear();
         this.driverCardTipList.clear();
 
         this.pdfFile = null;
         this.csvFile = null;
+        this.journalFile = null;
         buildPeriod();
     }
 
@@ -216,6 +268,14 @@ public class DriverPayoutPeriod {
         this.driverPayout = driverPayout;
     }
 
+    public Double getDriverCost() {
+        return Utility.getInstance().round(driverCost,2);
+    }
+
+    public void setDriverCost(Double driverCost) {
+        this.driverCost = driverCost;
+    }
+
     public File getPdfFile() {
         return pdfFile;
     }
@@ -230,6 +290,14 @@ public class DriverPayoutPeriod {
 
     public void setCsvFile(File csvFile) {
         this.csvFile = csvFile;
+    }
+
+    public File getJournalFile() {
+        return journalFile;
+    }
+
+    public void setJournalFile(File journalFile) {
+        this.journalFile = journalFile;
     }
 
     @Override
@@ -267,12 +335,137 @@ public class DriverPayoutPeriod {
     public String getDriverPayoutFmt(){
         return String.format("%.2f",getDriverPayout());
     }
+    public String getDriverCostFmt(){
+        return String.format("%.2f",getDriverCost());
+    }
+
+    public void createJournalEntries(){
+        journalEntries.clear();
+        LocalDate journalEndDate;
+        if(partMonth){
+            journalEndDate = partMonthPayoutPeriodEnd;
+        }else{
+            journalEndDate = payoutPeriodEnd;
+        }
+        String prefix = "DriverPay_";
+        String prefixMemo = "Driver payout";
+        String prefixFile = "DriverPayoutJournalEntry-";
+        JournalEntry journalEntry = new JournalEntry();
+        journalEntry.setDocNumber(prefix, journalEndDate);
+        journalEntry.setTxnDate(journalEndDate);
+        journalEntry.setPrivateNote(prefixMemo, payoutPeriodStart,journalEndDate);
+        journalEntry.setFileName(prefixFile, payoutPeriodStart,journalEndDate);
+        log.info("createJournalEntries: journalNo:" + journalEntry.getDocNumber());
+        if(partMonth){
+            //build first part of period
+            journalEntry.addLine(getPartMonthDriverPay(), JournalEntry.PostingType.Debit,"COGS Driver:Driver Pay","");
+            journalEntry.addLine(getPartMonthDriverAdjustments(), JournalEntry.PostingType.Debit,"COGS Driver:Driver Adjustment","");
+            journalEntry.addLine(getPartMonthDriverTips(), JournalEntry.PostingType.Debit,"Tips payable","");
+            journalEntry.addLine(getPartMonthDriverCash(), JournalEntry.PostingType.Credit,"Cash on hand","");
+            for (Long fleetId: fleetIds) {
+                if(partMonthDriverPayoutWeekMap.containsKey(fleetId)){
+                    String driverName = partMonthDriverPayoutWeekMap.get(fleetId).getFleetName();
+                    Double payout = partMonthDriverPayoutWeekMap.get(fleetId).getDriverPayout();
+                    if(payout>0.0){
+                        journalEntry.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                    }else if(payout<0.0){
+                        journalEntry.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                    }
+                }
+            }
+            journalEntries.add(journalEntry);
+
+            //build second part of period
+            JournalEntry journalEntry2 = new JournalEntry();
+            journalEntry2.setDocNumber(prefix, payoutPeriodEnd);
+            journalEntry2.setTxnDate(payoutPeriodEnd);
+            journalEntry2.setPrivateNote(prefixMemo, partMonthPayoutPeriodEnd.plusDays(1L),payoutPeriodEnd);
+            journalEntry2.setFileName(prefixFile, partMonthPayoutPeriodEnd.plusDays(1L),payoutPeriodEnd);
+            journalEntry2.addLine(Utility.getInstance().round(getDriverPay()-getPartMonthDriverPay(),2), JournalEntry.PostingType.Debit,"COGS Driver:Driver Pay","");
+            journalEntry2.addLine(Utility.getInstance().round(getDriverAdjustment()-getPartMonthDriverAdjustments(),2), JournalEntry.PostingType.Debit,"COGS Driver:Driver Adjustment","");
+            journalEntry2.addLine(Utility.getInstance().round(getTip()-getPartMonthDriverTips(),2), JournalEntry.PostingType.Debit,"Tips payable","");
+            journalEntry2.addLine(Utility.getInstance().round(getDriverCash()-getPartMonthDriverCash(),2), JournalEntry.PostingType.Credit,"Cash on hand","");
+            for (Long fleetId: fleetIds) {
+                if(driverPayoutWeekMap.containsKey(fleetId)){
+                    String driverName = driverPayoutWeekMap.get(fleetId).getFleetName();
+                    Double payout = 0.0;
+                    if(partMonthDriverPayoutWeekMap.containsKey(fleetId)){
+                        payout = Utility.getInstance().round(driverPayoutWeekMap.get(fleetId).getDriverPayout() - partMonthDriverPayoutWeekMap.get(fleetId).getDriverPayout(),2);
+                        //if the split will cause the 2nd part to be negative then make zero and put it in the first part
+                    }else{
+                        payout = driverPayoutWeekMap.get(fleetId).getDriverPayout();
+                    }
+                    if(payout>0.0){
+                        journalEntry2.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                    }else if(payout<0.0){
+                        journalEntry2.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                    }
+                }
+            }
+            journalEntries.add(journalEntry2);
+        }else{
+            journalEntry.addLine(getDriverPay(), JournalEntry.PostingType.Debit,"COGS Driver:Driver Pay","");
+            log.info("createJournalEntries: getDriverPay:" + getDriverPay());
+            journalEntry.addLine(getDriverAdjustment(), JournalEntry.PostingType.Debit,"COGS Driver:Driver Adjustment","");
+            log.info("createJournalEntries: getDriverAdjustment:" + getDriverAdjustment());
+            journalEntry.addLine(getTip(), JournalEntry.PostingType.Debit,"Tips payable","");
+            log.info("createJournalEntries: getTip:" + getTip());
+            journalEntry.addLine(getDriverCash(), JournalEntry.PostingType.Credit,"Cash on hand","");
+            log.info("createJournalEntries: getDriverCash:" + getDriverCash());
+            for (DriverPayoutWeek driverPayoutWeek: getDriverPayoutWeekList()) {
+                if(driverPayoutWeek.getDriverPayout()>0.0){
+                    journalEntry.addLine(driverPayoutWeek.getDriverPayout(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverPayoutWeek.getFleetName());
+                    log.info("createJournalEntries: getDriverPayout credit:" + driverPayoutWeek.getDriverPayout());
+                }else if(driverPayoutWeek.getDriverPayout()<0.0){
+                    journalEntry.addLine(Math.abs(driverPayoutWeek.getDriverPayout()), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverPayoutWeek.getFleetName());
+                    log.info("createJournalEntries: getDriverPayout debit:" + Math.abs(driverPayoutWeek.getDriverPayout()));
+                }
+            }
+            log.info("createJournalEntries: journalEntry:" + journalEntry);
+            journalEntries.add(journalEntry);
+        }
+    }
+
+    public Double getPartMonthDriverPay() {
+        return Utility.getInstance().round(partMonthDriverPay,2);
+    }
+
+    public Double getPartMonthDriverAdjustments() {
+        return Utility.getInstance().round(partMonthDriverAdjustments,2);
+    }
+
+    public Double getPartMonthDriverTips() {
+        return Utility.getInstance().round(partMonthDriverTips,2);
+    }
+
+    public Double getPartMonthDriverCash() {
+        return Utility.getInstance().round(partMonthDriverCash,2);
+    }
 
     public List<PayoutDocument> getPayoutDocuments(){
         List<PayoutDocument> payoutDocumentList = new ArrayList<>();
         if(getCsvFile()==null){
             return payoutDocumentList;
         }
+
+        //create and save a journalEntry
+        for (JournalEntry journalEntry: journalEntries) {
+            String journalFileName = journalEntry.getFileName();
+            File journalFile = new File(outputDir,journalFileName);
+
+            QBOResult qboResult = journalEntry.save(journalFile);
+            if(qboResult.getSuccess()){
+                payoutDocumentList.add(new PayoutDocument(journalFileName, journalFile, ""));
+            }else{
+                log.info("getPayoutDocuments: error saving journalEntry to file:" + journalFileName);
+            }
+        }
+
+        /*
+        if(getJournalFile()!=null){
+            payoutDocumentList.add(new PayoutDocument("Driver payout journal entry", getJournalFile(), ""));
+        }
+         */
         payoutDocumentList.add(new PayoutDocument("All driver payout tasks (Excel)", getCsvFile(), ""));
         payoutDocumentList.add(new PayoutDocument("Driver payout summary statement (PDF)", getPdfFile(),""));
         for (DriverPayoutWeek driverPayoutWeek: getDriverPayoutWeekList()) {
@@ -300,5 +493,9 @@ public class DriverPayoutPeriod {
     public List<DriverPayoutEntity> getTipIssues(){
         TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
         return taskDetailRepository.getDriverPayoutTipIssues(payoutPeriodStart.atStartOfDay(),payoutPeriodEnd.atTime(23,59,59));
+    }
+
+    public List<JournalEntry> getJournalEntries() {
+        return journalEntries;
     }
 }

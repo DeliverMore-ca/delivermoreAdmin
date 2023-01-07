@@ -6,7 +6,10 @@ import ca.admin.delivermore.collector.data.service.EmailService;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.data.entity.RestAdjustment;
 import ca.admin.delivermore.data.service.Registry;
+import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
+import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
 import ca.admin.delivermore.views.UIUtilities;
+import ca.admin.delivermore.data.intuit.JournalEntry;
 import com.opencsv.bean.HeaderColumnNameMappingStrategy;
 import com.opencsv.bean.StatefulBeanToCsv;
 import com.opencsv.bean.StatefulBeanToCsvBuilder;
@@ -43,6 +46,8 @@ import fr.opensagres.xdocreport.template.IContext;
 import fr.opensagres.xdocreport.template.TemplateEngineKind;
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata;
 import org.apache.commons.collections4.comparators.FixedOrderComparator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -52,15 +57,20 @@ import java.io.*;
 import java.nio.file.Files;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
-public class RestPayoutSummary {
+public class RestPayoutSummary implements TaskListRefreshNeededListener {
 
+    private Logger log = LoggerFactory.getLogger(RestPayoutSummary.class);
     Map<Long, RestPayoutPeriod> restPayoutPeriodMap = new TreeMap<>();
+    Map<Long, RestPayoutPeriod> partMonthRestPayoutPeriodMap = new TreeMap<>();
     List<RestPayoutPeriod> restPayoutPeriodList = new ArrayList<>();
+    private List<Restaurant> restaurantList = new ArrayList<>();
     private LocalDate periodStart;
     private LocalDate periodEnd;
     private Double sale = 0.0;
@@ -79,15 +89,21 @@ public class RestPayoutSummary {
 
     private Double directTotalSale = 0.0;
     private Double phoneInTotalSale = 0.0;
+    private Double webOrderTotalSale = 0.0;
+    private Double webOrderOnlineTotalSale = 0.0;
     private Integer directItemCount = 0;
     private Integer phoneInItemCount = 0;
+    private Integer webOrderItemCount = 0;
+    private Integer webOrderOnlineItemCount = 0;
 
+    private Double prePaidTotalSale = 0.0;
     private Double deliveryFeeFromVendor = 0.0;
     private Double deliveryFeeFromExternal = 0.0;
     private Double commissionForPayout = 0.0;
     private Double commissionPerDelivery = 0.0;
     private Double adjustment = 0.0;
     private Double owingToVendor = 0.0;
+    private Double COGS = 0.0;
 
     private VerticalLayout mainLayout = new VerticalLayout();
     private RestaurantRepository restaurantRepository;
@@ -117,22 +133,54 @@ public class RestPayoutSummary {
     private Resource resourcePayStatementTemplate;
     @Autowired
     private EmailService emailService;
+    @Autowired
+    OAuth2Configuration oAuth2Configuration;
+    private Boolean autoLoad = Boolean.TRUE;
+    private RestSaleSummary restSaleSummary = new RestSaleSummary();
+    private MissingGlobalDataDetails missingGlobalDataDetails = new MissingGlobalDataDetails();
+    private MissingPOSDataDetails missingPOSDataDetails = new MissingPOSDataDetails();
 
-    public RestPayoutSummary(LocalDate periodStart, LocalDate periodEnd) {
+    private Boolean partMonth = Boolean.FALSE;
+    private LocalDate partMonthPayoutPeriodEnd;
+    private Double partMonthCOGS = 0.0;
+    private Double partMonthTaxes = 0.0;
+
+    private List<ca.admin.delivermore.data.intuit.JournalEntry> journalEntries = new ArrayList<>();
+
+    public RestPayoutSummary(LocalDate periodStart, LocalDate periodEnd, Boolean autoLoad) {
         this.periodStart = periodStart;
         this.periodEnd = periodEnd;
+        this.autoLoad = autoLoad;
+        //determine if split over 2 months
+        if(periodStart.getMonth().equals(periodEnd.getMonth())){
+            partMonth = Boolean.FALSE;
+            partMonthPayoutPeriodEnd = periodEnd;
+        }else{
+            partMonth = Boolean.TRUE;
+            partMonthPayoutPeriodEnd = periodStart.with(TemporalAdjusters.lastDayOfMonth());
+        }
         restaurantRepository = Registry.getBean(RestaurantRepository.class);
         this.resourcePayStatementTemplate = new ClassPathResource("Rest_SummaryPayStatement_Template.docx");
         emailService = Registry.getBean(EmailService.class);
+        oAuth2Configuration = Registry.getBean(OAuth2Configuration.class);
+        missingGlobalDataDetails.getTaskEditDialog().addListener(this);
+        missingPOSDataDetails.getTaskEditDialog().addListener(this);
         mainLayout.setPadding(false);
         mainLayout.setSpacing(false);
         mainLayout.setMargin(false);
         adjustmentDialog = new RestPayoutAdjustmentDialog(periodStart);
         configureRestPayoutItemColumns();
         configureRestAdjustmentsColumns();
+        fullRefresh();
+    }
+
+    private void fullRefresh(){
+        mainLayout.removeAll();
         buildSummary();
-        buildSummaryLayout();
-        buildRestaurantLayout();
+        if(autoLoad){
+            buildSummaryLayout();
+            buildRestaurantLayout();
+        }
     }
 
     public void refresh(){
@@ -178,10 +226,12 @@ public class RestPayoutSummary {
         mainLayout.add(summaryDetails);
         summaryDetailsSummary = buildSummaryDetailsSummary();
         summaryDetailsContent = UIUtilities.getVerticalLayout();
+        summaryDetailsContent.add(buildExternalInvoiceList());
         summaryDetailsContent.add(buildSummaryDocuments());
+        summaryDetailsContent.add(missingGlobalDataDetails.buildMissingGlobalData(periodStart,periodEnd));
+        summaryDetailsContent.add(missingPOSDataDetails.buildMissingPOSData(periodStart,periodEnd));
         summaryDetailsContent.add(buildSummaryLayoutContentRestList());
         summaryDetailsContent.add(buildSummaryLayoutContentAdjustmentsList());
-        summaryDetailsContent.add(buildExternalInvoiceList());
         summaryDetails.setContent(summaryDetailsContent);
 
     }
@@ -195,6 +245,22 @@ public class RestPayoutSummary {
         periodDocumentsGrid = new Grid<>();
 
         HorizontalLayout periodDocumentsToolbar = UIUtilities.getHorizontalLayout(true,true,false);
+
+        Button postJournalEntries = new Button("Post to QBO");
+        postJournalEntries.setDisableOnClick(true);
+        postJournalEntries.setEnabled(false);
+        postJournalEntries.addClickListener(e -> {
+            for (JournalEntry journalEntry:journalEntries) {
+                QBOResult qboResult = journalEntry.post();
+                log.info("buildSummaryDocuments: qboResult:" + qboResult.getMessage());
+                if(qboResult.getSuccess()){
+                    Notification.show("Journal Entry:" + journalEntry.getDocNumber() + " posted");
+                }else{
+                    Notification.show("Failed to post Journal Entry:" + journalEntry.getDocNumber());
+                }
+            }
+        });
+
         Button createDocuments = new Button("Create documents");
         createDocuments.setDisableOnClick(true);
         createDocuments.addClickListener(e -> {
@@ -202,20 +268,21 @@ public class RestPayoutSummary {
             periodDocumentsGrid.setItems(payoutDocumentList);
             periodDocumentsGrid.getDataProvider().refreshAll();
             createDocuments.setEnabled(true);
+            postJournalEntries.setEnabled(true);
         });
         Button emailDocumentsButton = new Button("Send documents");
         emailDocumentsButton.setDisableOnClick(true);
         emailDocumentsButton.setEnabled(false);
         emailDocumentsButton.addClickListener(e -> {
             for (PayoutDocument payoutDocument:selectedPayoutDocuments) {
-                if(payoutDocument.getEmailAddress().isEmpty()){
-                    //System.out.println("Skipping selected item:" + payoutDocument.getName() + " as no email");
+                if(payoutDocument.getEmailAddress()==null || payoutDocument.getEmailAddress().isEmpty()){
+                    //log.info("Skipping selected item:" + payoutDocument.getName() + " as no email");
                 }else{
                     Notification.show("Sending:" + payoutDocument.getName());
                     String subject = "DeliverMore " + payoutDocument.getName();
                     String body = "";
                     emailService.sendMailWithAttachment(payoutDocument.getEmailAddress(), subject, body, payoutDocument.getFile(), payoutDocument.getFile().getName());
-                    //System.out.println("Selected item to email:" + payoutDocument.getName() + " send to:" + payoutDocument.getEmailAddress());
+                    //log.info("Selected item to email:" + payoutDocument.getName() + " send to:" + payoutDocument.getEmailAddress());
                 }
             }
             emailDocumentsButton.setEnabled(true);
@@ -238,6 +305,11 @@ public class RestPayoutSummary {
         zipDocumentsButtonWrapper.wrapComponent(zipDocumentsButton);
 
         periodDocumentsToolbar.add(createDocuments,emailDocumentsButton,zipDocumentsButtonWrapper);
+
+        if(oAuth2Configuration.isConfigured()){
+            periodDocumentsToolbar.add(postJournalEntries);
+        }
+
         VerticalLayout periodDocumentsContent = UIUtilities.getVerticalLayout();
         periodDocumentsContent.add(periodDocumentsToolbar);
         periodDocuments.addContent(periodDocumentsContent);
@@ -278,8 +350,8 @@ public class RestPayoutSummary {
         return periodDocuments;
     }
 
-    private File getZippedFileforFileList(List<PayoutDocument> docList){
-        System.out.println("***Start of ZIP process***");
+    public File getZippedFileforFileList(List<PayoutDocument> docList){
+        log.info("***Start of ZIP process***");
         String zipFileName = "Start " + periodStart;
         File zippedFile = new File(appPath, zipFileName + ".zip");
         FileOutputStream fos = null;
@@ -307,15 +379,117 @@ public class RestPayoutSummary {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println("***END of ZIP process***");
+        log.info("***END of ZIP process***");
 
         return zippedFile;
 
     }
 
+    private void createJournalEntries(){
+        journalEntries.clear();
+        LocalDate journalEndDate;
+        if(partMonth){
+            journalEndDate = partMonthPayoutPeriodEnd;
+        }else{
+            journalEndDate = periodEnd;
+        }
+        String prefix = "VendorPay_";
+        String prefixMemo = "Vendor payout";
+        String prefixFile = "VendorPayoutJournalEntry-"
+;        JournalEntry journalEntry = new JournalEntry();
+        journalEntry.setDocNumber(prefix, journalEndDate);
+        journalEntry.setTxnDate(journalEndDate);
+        journalEntry.setPrivateNote(prefixMemo, periodStart,journalEndDate);
+        journalEntry.setFileName(prefixFile, periodStart,journalEndDate);
+        log.info("createJournalEntries: journalNo:" + journalEntry.getDocNumber());
+        if(partMonth){
+            //build first part of period
+            journalEntry.addLine(getPartMonthCOGS(), JournalEntry.PostingType.Debit,"COGS Sales","");
+            journalEntry.addLine(getPartMonthTaxes(), JournalEntry.PostingType.Debit,"Sales Tax Payable","");
+            for (Restaurant restaurant : restaurantList) {
+                if(partMonthRestPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
+                    String restName = restaurant.getName();
+                    RestPayoutPeriod payoutPeriod = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    if(payoutPeriod.getOwingToVendor()>0){
+                        journalEntry.addLine(payoutPeriod.getOwingToVendor(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                    if(payoutPeriod.getPaidToVendor()>0){
+                        journalEntry.addLine(payoutPeriod.getPaidToVendor(), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                }
+            }
+            journalEntries.add(journalEntry);
+            //build second part of period
+            JournalEntry journalEntry2 = new JournalEntry();
+            journalEntry2.setDocNumber(prefix, periodEnd);
+            journalEntry2.setTxnDate(periodEnd);
+            journalEntry2.setPrivateNote(prefixMemo, partMonthPayoutPeriodEnd.plusDays(1L),periodEnd);
+            journalEntry2.setFileName(prefixFile, partMonthPayoutPeriodEnd.plusDays(1L),periodEnd);
+            journalEntry2.addLine(Utility.getInstance().round(getCOGS() - getPartMonthCOGS(),2), JournalEntry.PostingType.Debit,"COGS Sales","");
+            journalEntry2.addLine(Utility.getInstance().round(getPayoutTaxes() - getPartMonthTaxes(),2), JournalEntry.PostingType.Debit,"Sales Tax Payable","");
+            for (Restaurant restaurant : restaurantList) {
+                String restName = restaurant.getName();
+                if(restPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
+                    RestPayoutPeriod payoutPeriod = restPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    Double partMonthOwingToVendor = 0.0;
+                    Double partMonthPaidToVendor = 0.0;
+                    if(partMonthRestPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
+                        partMonthOwingToVendor = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId()).getOwingToVendor();
+                        partMonthPaidToVendor = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId()).getPaidToVendor();
+                    }
+                    if(payoutPeriod.getOwingToVendor()-partMonthOwingToVendor>0){
+                        journalEntry2.addLine(Utility.getInstance().round(payoutPeriod.getOwingToVendor()-partMonthOwingToVendor,2), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                    if(payoutPeriod.getPaidToVendor()-partMonthPaidToVendor>0){
+                        journalEntry2.addLine(Utility.getInstance().round(payoutPeriod.getPaidToVendor()-partMonthPaidToVendor,2), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                }
+            }
+            journalEntries.add(journalEntry2);
+        }else{
+            journalEntry.addLine(getCOGS(), JournalEntry.PostingType.Debit,"COGS Sales","");
+            journalEntry.addLine(getPayoutTaxes(), JournalEntry.PostingType.Debit,"Sales Tax Payable","");
+            for (Restaurant restaurant : restaurantList) {
+                String restName = restaurant.getName();
+                if(restPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
+                    RestPayoutPeriod payoutPeriod = restPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    if(payoutPeriod.getOwingToVendor()>0){
+                        journalEntry.addLine(payoutPeriod.getOwingToVendor(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                    if(payoutPeriod.getPaidToVendor()>0){
+                        journalEntry.addLine(payoutPeriod.getPaidToVendor(), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    }
+                }
+            }
+            journalEntries.add(journalEntry);
+        }
+    }
 
     private List<PayoutDocument> getPayoutDocuments(){
         payoutDocumentList.clear();
+        //TODO: test that this still works after adding emptying this folder
+        Utility.emptyDir(outputDir);
+        try {
+            Files.createDirectory(outputDir.toPath());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        //create and save a journalEntry
+        if(oAuth2Configuration.isConfigured()){
+            createJournalEntries();
+            for (JournalEntry journalEntry: journalEntries) {
+                String journalFileName = journalEntry.getFileName();
+                File journalFile = new File(outputDir,journalFileName);
+
+                QBOResult qboResult = journalEntry.save(journalFile);
+                if(qboResult.getSuccess()){
+                    payoutDocumentList.add(new PayoutDocument(journalFileName, journalFile, ""));
+                }else{
+                    log.info("getPayoutDocuments: error saving journalEntry to file:" + journalFileName);
+                }
+            }
+        }
 
         createSummaryStatement();
         String docName = "Summary Payout Statement: " + getPeriodStart() + " - " + getPeriodEnd();
@@ -371,7 +545,7 @@ public class RestPayoutSummary {
 
             writer.close();
         } catch (CsvDataTypeMismatchException | CsvRequiredFieldEmptyException ex) {
-            System.out.println("saveCSV: CSV write failed");
+            log.info("saveCSV: CSV write failed");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -397,7 +571,7 @@ public class RestPayoutSummary {
 
             writer.close();
         } catch (CsvDataTypeMismatchException | CsvRequiredFieldEmptyException ex) {
-            System.out.println("saveAdjustmentsCSV: CSV write failed");
+            log.info("saveAdjustmentsCSV: CSV write failed");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -415,9 +589,11 @@ public class RestPayoutSummary {
                 "sale",
                 "taxes",
                 "totalSale",
+                "prePaidTotalSale",
                 "deliveryFee",
                 "deliveryFeeFromVendor",
                 "paymentMethod",
+                "paidToVendor",
                 "commissionPerDelivery"
         };
 
@@ -442,7 +618,7 @@ public class RestPayoutSummary {
     }
 
     private void createSummaryStatement() {
-        System.out.println("createPDFStatements: summary statement");
+        log.info("createPDFStatements: summary statement");
         String outputFileExt = ".pdf";
 
         String outputFileName = "SummarySalesStatement-" + periodStart + "-" + periodEnd;
@@ -476,17 +652,20 @@ public class RestPayoutSummary {
             metadata.addFieldAsList("restPayoutPeriodList.getPaidItemCount()");
             metadata.addFieldAsList("restPayoutPeriodList.getDirectSalesCount()");
             metadata.addFieldAsList("restPayoutPeriodList.getPhoneInSalesCount()");
+            metadata.addFieldAsList("restPayoutPeriodList.getWebOrderSalesCount()");
+            metadata.addFieldAsList("restPayoutPeriodList.getWebOrderOnlineSalesCount()");
             metadata.addFieldAsList("restPayoutPeriodList.getItemCount()");
             metadata.addFieldAsList("restPayoutPeriodList.getPayoutTotalSale()");
             metadata.addFieldAsList("restPayoutPeriodList.getPaidTotalSale()");
             metadata.addFieldAsList("restPayoutPeriodList.getDirectTotalSale()");
             metadata.addFieldAsList("restPayoutPeriodList.getPhoneInTotalSale()");
+            metadata.addFieldAsList("restPayoutPeriodList.getWebOrderTotalSale()");
+            metadata.addFieldAsList("restPayoutPeriodList.getWebOrderOnlineTotalSale()");
             metadata.addFieldAsList("restPayoutPeriodList.getTotalSale()");
             metadata.addFieldAsList("restPayoutPeriodList.getOwingToVendor()");
             report.setFieldsMetadata(metadata);
 
             context.put("restPayoutPeriodList", restPayoutPeriodList);
-
             /*
             List<RestPayoutItem> restPaidItems = this.paidRestItems;
             // 2) Create fields metadata to manage lazy loop (#forech velocity)
@@ -511,10 +690,10 @@ public class RestPayoutSummary {
             Options options = Options.getTo(ConverterTypeTo.PDF).via(ConverterTypeVia.XWPF);
             report.convert(context, options, out);
         } catch (IOException e) {
-            System.out.println("createPDFStatements: FAILED vendor summary:" + " ERROR:" + e.toString());
+            log.info("createPDFStatements: FAILED vendor summary:" + " ERROR:" + e.toString());
             e.printStackTrace();
         } catch (XDocReportException e) {
-            System.out.println("createPDFStatements: FAILED2 vendor summary:" + " ERROR:" + e.toString());
+            log.info("createPDFStatements: FAILED2 vendor summary:" + " ERROR:" + e.toString());
             e.printStackTrace();
         }
 
@@ -525,6 +704,7 @@ public class RestPayoutSummary {
         HorizontalLayout summaryDetailsSummaryHeader = UIUtilities.getHorizontalLayout();
         HorizontalLayout summaryDetailsSummaryOwing = UIUtilities.getHorizontalLayoutNoWidthCentered();
         HorizontalLayout summaryDetailsSummaryFields = UIUtilities.getHorizontalLayout();
+        HorizontalLayout summaryDetailsSummaryFields2 = UIUtilities.getHorizontalLayout();
         String summaryTitle = "Payout Summary: " + periodStart + " - " + periodEnd;
         NumberField summaryOwing = UIUtilities.getNumberField("", getOwingToVendor());
         Label summaryOwingLabel = new Label("Owing :");
@@ -532,8 +712,9 @@ public class RestPayoutSummary {
         summaryDetailsSummaryHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         summaryDetailsSummaryHeader.setAlignItems(FlexComponent.Alignment.START);
         summaryDetailsSummaryHeader.add(new Text(summaryTitle),summaryDetailsSummaryOwing);
-        summaryDetailsSummary.add(summaryDetailsSummaryHeader,summaryDetailsSummaryFields);
+        summaryDetailsSummary.add(summaryDetailsSummaryHeader,summaryDetailsSummaryFields,summaryDetailsSummaryFields2);
         summaryDetails.setSummary(summaryDetailsSummary);
+        NumberField summaryCOGS = UIUtilities.getNumberField("COGS", getCOGS());
         NumberField summaryPayoutSale = UIUtilities.getNumberField("Sales", getPayoutSale());
         NumberField summaryPayoutTaxes = UIUtilities.getNumberField("Taxes", getPayoutTaxes());
         NumberField summaryPayoutTotalSale = UIUtilities.getNumberField("TotalSales", getPayoutTotalSale());
@@ -541,21 +722,26 @@ public class RestPayoutSummary {
         NumberField summaryDeliveryFeeFromVendor = UIUtilities.getNumberField("Fee from Vendor",getDeliveryFeeFromVendor());
         NumberField summaryCommission = UIUtilities.getNumberField("Commission", getCommissionForPayout());
         NumberField summaryCommissionPerDelivery = UIUtilities.getNumberField("Commission Per", getCommissionPerDelivery());
+        NumberField summaryPrePaidTotalSale = UIUtilities.getNumberField("Pre Paid Sale", getPrePaidTotalSale());
         NumberField summaryAdjustment = UIUtilities.getNumberField("Adjustment", getAdjustment());
         summaryDetailsSummaryFields.add(
                 summaryPayoutSale,
                 summaryPayoutTaxes,
                 summaryPayoutTotalSale,
                 summaryItemCount,
+                summaryCOGS
+                );
+        summaryDetailsSummaryFields2.add(
                 summaryDeliveryFeeFromVendor,
                 summaryCommission,
                 summaryCommissionPerDelivery,
+                summaryPrePaidTotalSale,
                 summaryAdjustment
         );
         return summaryDetailsSummary;
     }
 
-    private Details buildSummaryLayoutContentRestList(){
+    public Details buildSummaryLayoutContentRestList(){
         Details gridDetails = UIUtilities.getDetails();
         gridDetails.setSummaryText("Restaurant Payouts");
         gridDetails.setOpened(true);
@@ -585,6 +771,12 @@ public class RestPayoutSummary {
         restGrid.addColumn(RestPayoutPeriod::getPeriodRange)
                 .setHeader("Period")
                 .setFlexGrow(1);
+        restGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getCOGS()))
+                .setComparator(RestPayoutPeriod::getCOGS)
+                .setWidth(numberColWidth)
+                .setFlexGrow(0)
+                .setSortable(true)
+                .setHeader("COGS").setTextAlign(ColumnTextAlign.END);
         restGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getPayoutSale()))
                 .setComparator(RestPayoutPeriod::getPayoutSale)
                 .setWidth(numberColWidth)
@@ -624,6 +816,11 @@ public class RestPayoutSummary {
                 .setWidth(numberColWidth)
                 .setFlexGrow(0)
                 .setHeader("Comm Per").setTextAlign(ColumnTextAlign.END);
+        restGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getPrePaidTotalSale()))
+                .setComparator(RestPayoutPeriod::getPrePaidTotalSale)
+                .setWidth(numberColWidth)
+                .setFlexGrow(0)
+                .setHeader("Pre Paid Sale").setTextAlign(ColumnTextAlign.END);
         restGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getAdjustment()))
                 .setComparator(RestPayoutPeriod::getAdjustment)
                 .setWidth(numberColWidth)
@@ -699,14 +896,31 @@ public class RestPayoutSummary {
 
         //determine which restaurants to process for given start date
         this.restPayoutItemList.clear();
-        for (Restaurant restaurant: restaurantRepository.getEffectiveRestaurantsForPayout(periodStart)) {
-            DateRange range = findRestPeriodDateRange(restaurant.getStartDayOffset(), restaurant.getWeeksInPeriod(), restaurant.getRangeStartDate());
+        if(autoLoad){
+            restaurantList = restaurantRepository.getEffectiveRestaurantsForPayout(periodStart);
+        }else{
+            restaurantList = restaurantRepository.findDistinctNonExpiredRestaurants();
+        }
+        for (Restaurant restaurant: restaurantList) {
+            DateRange range;
+            if(autoLoad){
+                range = findRestPeriodDateRange(restaurant.getStartDayOffset(), restaurant.getWeeksInPeriod(), restaurant.getRangeStartDate());
+            }else{
+                range = new DateRange(periodStart, periodEnd);
+            }
             if(range==null){
-                System.out.println("buildRestPayoutDetails:" + restaurant.getName() + " Not a valid payout period");
+                log.info("buildRestPayoutDetails:" + restaurant.getName() + " Not a valid payout period");
             }else{
                 RestPayoutPeriod restPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), range.getEndDate(), restaurant, this);
                 restPayoutPeriodMap.put(restaurant.getRestaurantId(), restPayoutPeriod);
-                System.out.println("buildRestPayoutDetails:" + restaurant.getName() + " start:" + range.getStartDate() + " end:" + range.getEndDate() + " PayoutSale:" + restPayoutPeriod.getPayoutSale() + " PayoutTaxes:" + restPayoutPeriod.getPayoutTaxes() + " PayoutTotalSale:" + restPayoutPeriod.getPayoutTotalSale() + " CommissionForPayout:" + restPayoutPeriod.getCommissionForPayout() + " CommissionPerDelivery:" + restPayoutPeriod.getCommissionPerDelivery() + " DeliveryFeeFromVendor:" + restPayoutPeriod.getDeliveryFeeFromVendor() + " owingToVendor:" + restPayoutPeriod.getOwingToVendor() + " commissionRate:" + restaurant.getCommissionRate() );
+                log.info("buildRestPayoutDetails:" + restaurant.getName() + " start:" + range.getStartDate() + " end:" + range.getEndDate() + " PayoutSale:" + restPayoutPeriod.getPayoutSale() + " PayoutTaxes:" + restPayoutPeriod.getPayoutTaxes() + " PayoutTotalSale:" + restPayoutPeriod.getPayoutTotalSale() + " CommissionForPayout:" + restPayoutPeriod.getCommissionForPayout() + " CommissionPerDelivery:" + restPayoutPeriod.getCommissionPerDelivery() + " DeliveryFeeFromVendor:" + restPayoutPeriod.getDeliveryFeeFromVendor() + " owingToVendor:" + restPayoutPeriod.getOwingToVendor() + " commissionRate:" + restaurant.getCommissionRate() );
+                if(partMonth){
+                    RestPayoutPeriod partMonthRestPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), partMonthPayoutPeriodEnd, restaurant, this);
+                    partMonthRestPayoutPeriodMap.put(restaurant.getRestaurantId(), partMonthRestPayoutPeriod);
+                    this.partMonthTaxes = this.partMonthTaxes + partMonthRestPayoutPeriod.getPayoutTaxes();
+                    this.partMonthCOGS = this.partMonthCOGS + partMonthRestPayoutPeriod.getCOGS();
+                }
+
                 this.payoutSale = this.payoutSale + restPayoutPeriod.getPayoutSale();
                 this.payoutTaxes = this.payoutTaxes + restPayoutPeriod.getPayoutTaxes();
                 this.payoutTotalSale = this.payoutTotalSale + restPayoutPeriod.getPayoutTotalSale();
@@ -717,10 +931,15 @@ public class RestPayoutSummary {
                 this.directTotalSale = this.directTotalSale + restPayoutPeriod.getDirectTotalSale();
                 this.directItemCount = this.directItemCount + restPayoutPeriod.getDirectSalesCount();
                 this.phoneInTotalSale = this.phoneInTotalSale + restPayoutPeriod.getPhoneInTotalSale();
+                this.webOrderTotalSale = this.webOrderTotalSale + restPayoutPeriod.getWebOrderTotalSale();
+                this.webOrderOnlineTotalSale = this.webOrderOnlineTotalSale + restPayoutPeriod.getWebOrderOnlineTotalSale();
                 this.phoneInItemCount = this.phoneInItemCount + restPayoutPeriod.getPhoneInSalesCount();
+                this.webOrderItemCount = this.webOrderItemCount + restPayoutPeriod.getWebOrderSalesCount();
+                this.webOrderOnlineItemCount = this.webOrderOnlineItemCount + restPayoutPeriod.getWebOrderOnlineSalesCount();
                 this.sale = this.sale + restPayoutPeriod.getSale();
                 this.taxes = this.taxes + restPayoutPeriod.getTaxes();
                 this.totalSale = this.totalSale + restPayoutPeriod.getTotalSale();
+                this.prePaidTotalSale = this.prePaidTotalSale + restPayoutPeriod.getPrePaidTotalSale();
                 this.itemCount = this.itemCount + restPayoutPeriod.getItemCount();
                 this.adjustment = this.adjustment + restPayoutPeriod.getAdjustment();
                 this.restAdjustmentList.addAll(restPayoutPeriod.getRestAdjustmentList());
@@ -732,6 +951,17 @@ public class RestPayoutSummary {
                 this.deliveryFeeFromExternal = this.deliveryFeeFromExternal + restPayoutPeriod.getDeliveryFeeFromExternal();
                 this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutPeriod.getDeliveryFeeFromVendor();
                 this.owingToVendor = this.owingToVendor + restPayoutPeriod.getOwingToVendor();
+                this.COGS = this.COGS + restPayoutPeriod.getCOGS();
+
+                this.restSaleSummary.setSale(this.restSaleSummary.getSale() + restPayoutPeriod.getRestSaleSummary().getSale());
+                this.restSaleSummary.setTax(this.restSaleSummary.getTax() + restPayoutPeriod.getRestSaleSummary().getTax());
+                this.restSaleSummary.setDeliveryFee(this.restSaleSummary.getDeliveryFee() + restPayoutPeriod.getRestSaleSummary().getDeliveryFee());
+                this.restSaleSummary.setServiceFee(this.restSaleSummary.getServiceFee() + restPayoutPeriod.getRestSaleSummary().getServiceFee());
+                this.restSaleSummary.setTip(this.restSaleSummary.getTip() + restPayoutPeriod.getRestSaleSummary().getTip());
+                this.restSaleSummary.setCashSale(this.restSaleSummary.getCashSale() + restPayoutPeriod.getRestSaleSummary().getCashSale());
+                this.restSaleSummary.setCardSale(this.restSaleSummary.getCardSale() + restPayoutPeriod.getRestSaleSummary().getCardSale());
+                this.restSaleSummary.setOnlineSale(this.restSaleSummary.getOnlineSale() + restPayoutPeriod.getRestSaleSummary().getOnlineSale());
+                this.restSaleSummary.setCount(this.restSaleSummary.getCount() + restPayoutPeriod.getRestSaleSummary().getCount());
 
                 if(restPayoutPeriod.hasPayoutFromExternalVendor()){
                     this.restPayoutFromExternalVendorList.add(restPayoutPeriod.getRestPayoutFromExternalVendor());
@@ -751,6 +981,13 @@ public class RestPayoutSummary {
         for (RestPayoutPeriod restPayoutPeriod: restPayoutPeriodList) {
             this.adjustment = this.adjustment + restPayoutPeriod.getAdjustment();
             this.restAdjustmentList.addAll(restPayoutPeriod.getRestAdjustmentList());
+        }
+        //As the adjustment amount may have changed we must also update owingToVendor
+        this.owingToVendor = 0.0;
+        this.COGS = 0.0;
+        for (RestPayoutPeriod restPayoutPeriod: restPayoutPeriodList) {
+            this.owingToVendor = this.owingToVendor + restPayoutPeriod.getOwingToVendor();
+            this.COGS = this.COGS + restPayoutPeriod.getCOGS();
         }
     }
 
@@ -776,10 +1013,10 @@ public class RestPayoutSummary {
             Long weeksSinceRangeStart = ChronoUnit.WEEKS.between(rangeStartDate, restPeriodStart);
             boolean isDivisibleByWeeks = weeksSinceRangeStart % weeksInPeriod == 0;
             if(isDivisibleByWeeks){
-                //System.out.println("Process this period: Weeks between:" + rangeStartDate + "and:" + restPeriodStart + " =:" + weeksSinceRangeStart);
+                //log.info("Process this period: Weeks between:" + rangeStartDate + "and:" + restPeriodStart + " =:" + weeksSinceRangeStart);
                 return new DateRange(restPeriodStart,restPeriodEnd);
             }else{
-                //System.out.println("Skip this period: Weeks between:" + rangeStartDate + "and:" + restPeriodStart + " =:" + weeksSinceRangeStart);
+                //log.info("Skip this period: Weeks between:" + rangeStartDate + "and:" + restPeriodStart + " =:" + weeksSinceRangeStart);
                 return null;
             }
         }
@@ -863,13 +1100,20 @@ public class RestPayoutSummary {
     }
 
     public Double getOwingToVendor() {
-        //this.owingToVendor = this.payoutTotalSale - this.commissionForPayout - this.commissionPerDelivery - this.deliveryFeeFromVendor - this.adjustment;
         return Utility.getInstance().round(owingToVendor,2);
+    }
+
+    public Double getCOGS(){
+        return Utility.getInstance().round(COGS,2);
     }
 
     public List<RestAdjustment> getRestAdjustmentList() {
         restAdjustmentList.sort(Comparator.comparing(RestAdjustment::getRestaurantName).thenComparing(RestAdjustment::getAdjustmentDate));
         return restAdjustmentList;
+    }
+
+    public List<RestPayoutPeriod> getRestPayoutPeriodList() {
+        return restPayoutPeriodList;
     }
 
     public RestPayoutPeriod getPeriod(Long restaurantID){
@@ -883,6 +1127,12 @@ public class RestPayoutSummary {
     public Double getPhoneInTotalSale() {
         return Utility.getInstance().round(phoneInTotalSale,2);
     }
+    public Double getWebOrderTotalSale() {
+        return Utility.getInstance().round(webOrderTotalSale,2);
+    }
+    public Double getWebOrderOnlineTotalSale() {
+        return Utility.getInstance().round(webOrderOnlineTotalSale,2);
+    }
 
     public Integer getDirectItemCount() {
         return directItemCount;
@@ -890,6 +1140,28 @@ public class RestPayoutSummary {
 
     public Integer getPhoneInItemCount() {
         return phoneInItemCount;
+    }
+    public Integer getWebOrderItemCount() {
+        return webOrderItemCount;
+    }
+    public Integer getWebOrderOnlineItemCount() {
+        return webOrderOnlineItemCount;
+    }
+
+    public Double getPrePaidTotalSale() {
+        return prePaidTotalSale;
+    }
+
+    public RestSaleSummary getRestSaleSummary() {
+        return restSaleSummary;
+    }
+
+    public Double getPartMonthCOGS() {
+        return Utility.getInstance().round(partMonthCOGS,2);
+    }
+
+    public Double getPartMonthTaxes() {
+        return Utility.getInstance().round(partMonthTaxes,2);
     }
 
     @Override
@@ -915,5 +1187,11 @@ public class RestPayoutSummary {
                 ", adjustment=" + getAdjustment() +
                 ", owingToVendor=" + getOwingToVendor() +
                 '}';
+    }
+
+    @Override
+    public void taskListRefreshNeeded() {
+        log.info("refreshNeeded: called: refreshing RestPayoutSummary");
+        fullRefresh();;
     }
 }

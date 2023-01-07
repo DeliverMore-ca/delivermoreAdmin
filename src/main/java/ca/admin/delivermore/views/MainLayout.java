@@ -4,14 +4,22 @@ import ca.admin.delivermore.components.appnav.AppNav;
 import ca.admin.delivermore.components.appnav.AppNavItem;
 import ca.admin.delivermore.components.appnav.BrandExpression;
 import ca.admin.delivermore.data.entity.User;
+import ca.admin.delivermore.data.service.Registry;
+import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
 import ca.admin.delivermore.security.AuthenticatedUser;
 import ca.admin.delivermore.views.about.AboutView;
 import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import ca.admin.delivermore.views.drivers.DriversView;
 import ca.admin.delivermore.views.home.HomeView;
+import ca.admin.delivermore.views.intuit.CallBackView;
+import ca.admin.delivermore.views.intuit.QBOConnectView;
 import ca.admin.delivermore.views.orders.OrdersView;
+import ca.admin.delivermore.views.report.PeriodSummaryView;
 import ca.admin.delivermore.views.restaurants.RestPayoutView;
 import ca.admin.delivermore.views.restaurants.RestView;
+import ca.admin.delivermore.views.tasks.TaskListView;
+import ca.admin.delivermore.views.tasks.TasksByCustomerView;
+import ca.admin.delivermore.views.tasks.TasksByDayAndWeekView;
 import ca.admin.delivermore.views.tasks.TasksView;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -36,10 +44,12 @@ public class MainLayout extends AppLayout {
 
     private AuthenticatedUser authenticatedUser;
     private AccessAnnotationChecker accessChecker;
+    private OAuth2Configuration oAuth2Configuration;
 
     public MainLayout(AuthenticatedUser authenticatedUser, AccessAnnotationChecker accessChecker) {
         this.authenticatedUser = authenticatedUser;
         this.accessChecker = accessChecker;
+        this.oAuth2Configuration = Registry.getBean(OAuth2Configuration.class);
 
         //TODO: load data from Tookan and then save to the TaskDetailRepository
         //create a method that provides a TaskEntity for each Task
@@ -86,7 +96,6 @@ public class MainLayout extends AppLayout {
         }
         AppNavItem utilities = new AppNavItem("Utilities");
         utilities.setIconClass("la la-folder-open");
-        //utilities.setIcon(new Icon(VaadinIcon.FOLDER_OPEN));
         nav.addItem(utilities);
         if (accessChecker.hasAccess(DriversView.class)) {
             AppNavItem driversMenu = new AppNavItem("Drivers", DriversView.class, "la la-car-side");
@@ -96,10 +105,37 @@ public class MainLayout extends AppLayout {
             AppNavItem restMenu = new AppNavItem("Restaurants", RestView.class, "la la-store-alt");
             utilities.addItem(restMenu);
         }
+        if (accessChecker.hasAccess(TaskListView.class)) {
+            AppNavItem taskListMenu = new AppNavItem("Task List", TaskListView.class, "la la-stack-overflow");
+            utilities.addItem(taskListMenu);
+        }
+        if(oAuth2Configuration.isConfigured()){
+            if (accessChecker.hasAccess(QBOConnectView.class)) {
+                AppNavItem qboConnectMenu = new AppNavItem("QBO connect", QBOConnectView.class, "la la-network-wired");
+                utilities.addItem(qboConnectMenu);
+            }
+        }
         if (accessChecker.hasAccess(TasksView.class)) {
             AppNavItem tasksMenu = new AppNavItem("Tasks(in progress)", TasksView.class, "la la-stack-overflow");
             utilities.addItem(tasksMenu);
         }
+
+        AppNavItem reports = new AppNavItem("Reports");
+        reports.setIconClass("la la-folder-open");
+        nav.addItem(reports);
+        if (accessChecker.hasAccess(TasksByCustomerView.class)) {
+            AppNavItem customerTasksMenu = new AppNavItem("Tasks by Customer", TasksByCustomerView.class, "la la-user");
+            reports.addItem(customerTasksMenu);
+        }
+        if (accessChecker.hasAccess(TasksByDayAndWeekView.class)) {
+            AppNavItem tasksByDayAndWeekMenu = new AppNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, "la la-calendar");
+            reports.addItem(tasksByDayAndWeekMenu);
+        }
+        if (accessChecker.hasAccess(PeriodSummaryView.class)) {
+            AppNavItem periodSummaryMenu = new AppNavItem("Period Summary", PeriodSummaryView.class, "la la-calendar");
+            reports.addItem(periodSummaryMenu);
+        }
+
         if (accessChecker.hasAccess(DriverPayoutView.class)) {
             nav.addItem(new AppNavItem("Driver Payouts", DriverPayoutView.class, "la la-portrait"));
 

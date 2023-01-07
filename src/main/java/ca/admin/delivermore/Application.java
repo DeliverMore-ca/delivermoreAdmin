@@ -19,7 +19,8 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
  * and some desktop browsers.
  *
  */
-@SpringBootApplication
+//@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "ca.admin.delivermore")
 @Push
 @Theme(value = "delivermore")
 @PWA(name = "DeliverMore", shortName = "DeliverMore", offlineResources = {})
@@ -29,8 +30,6 @@ public class Application extends SpringBootServletInitializer implements AppShel
 
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
-        System.out.println("Working Directory = " + System.getProperty("user.dir"));
-
     }
 
 }

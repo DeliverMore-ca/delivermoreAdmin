@@ -4,6 +4,7 @@ import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.data.service.TaskDetailService;
 import ca.admin.delivermore.views.MainLayout;
+import ca.admin.delivermore.views.restaurants.RestView;
 import com.opencsv.bean.HeaderColumnNameMappingStrategy;
 import com.opencsv.bean.StatefulBeanToCsv;
 import com.opencsv.bean.StatefulBeanToCsvBuilder;
@@ -28,8 +29,12 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import org.apache.commons.collections4.comparators.FixedOrderComparator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.security.PermitAll;
+import javax.annotation.security.RolesAllowed;
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.time.DayOfWeek;
@@ -39,8 +44,9 @@ import java.util.stream.Stream;
 
 @PageTitle("Tasks")
 @Route(value = "tasks", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed("ADMIN")
 public class TasksView extends Main {
+    private Logger log = LoggerFactory.getLogger(TasksView.class);
     private Grid<TaskEntity> tasksGrid = new Grid<>(TaskEntity.class);
     private TextField filterText = new TextField();
 
@@ -105,6 +111,8 @@ public class TasksView extends Main {
                 "driverIncome",
                 "driverCash",
                 "driverPayout",
+                "webOrder",
+                "feesOnly",
                 "formId",
                 "jobLatitude",
                 "jobLongitude",
@@ -181,11 +189,11 @@ public class TasksView extends Main {
                                 .build();
                         beanToCsv.write(taskEntityStream);
                         var content = output.toString();
-                        //System.out.println("content:" + content);
+                        //log.info("content:" + content);
                         //outputStream.write(content.getBytes());
                         return new ByteArrayInputStream(content.getBytes());
                     } catch (CsvDataTypeMismatchException | CsvRequiredFieldEmptyException ex) {
-                        System.out.println("TasksView: CSV download failed");
+                        log.info("TasksView: CSV download failed");
                         return null;
                     }
 
@@ -227,8 +235,7 @@ public class TasksView extends Main {
         if(endDate==null){
             endDate = startDate;
         }
-        System.out.println("updateList: start:" + startDate + " end:" + endDate);
-        //TODO: check end date for null and set to start
+        log.info("updateList: start:" + startDate + " end:" + endDate);
         tasksGrid.setItems(service.findAllTaskDetails(startDate.atStartOfDay(),endDate.atTime(23,59,59)));
         taskCount.setText("(" + tasksGrid.getDataProvider().size(new Query<>()) + " tasks)");
     }

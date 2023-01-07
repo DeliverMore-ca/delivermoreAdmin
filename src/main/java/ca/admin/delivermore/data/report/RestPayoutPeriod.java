@@ -34,6 +34,8 @@ import fr.opensagres.xdocreport.document.registry.XDocReportRegistry;
 import fr.opensagres.xdocreport.template.IContext;
 import fr.opensagres.xdocreport.template.TemplateEngineKind;
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -46,6 +48,7 @@ import java.util.List;
 
 public class RestPayoutPeriod implements Serializable {
 
+    private Logger log = LoggerFactory.getLogger(RestPayoutPeriod.class);
     private LocalDate periodStart;
     private LocalDate periodEnd;
     private String periodRange;
@@ -57,6 +60,7 @@ public class RestPayoutPeriod implements Serializable {
     private Double taxes = 0.0;
     private Double totalSale = 0.0;
     private Integer itemCount = 0;
+    private Double paidToVendor = 0.0;
 
     private Double payoutSale = 0.0;
     private Double payoutTaxes = 0.0;
@@ -69,6 +73,10 @@ public class RestPayoutPeriod implements Serializable {
     private Double directSale = 0.0;
     private Double directTotalSale = 0.0;
     private Double phoneInTotalSale = 0.0;
+    private Double webOrderTotalSale = 0.0;
+    private Double webOrderOnlineTotalSale = 0.0;
+
+    private Double prePaidTotalSale = 0.0;
 
     private Double deliveryFeeFromVendor = 0.0;
     private Double deliveryFeeFromExternal = 0.0;
@@ -87,6 +95,8 @@ public class RestPayoutPeriod implements Serializable {
     private List<RestAdjustment> restAdjustmentList = new ArrayList<>();
     private List<RestPayoutItem> saleItemsDirect = new ArrayList<>();
     private List<RestPayoutItem> saleItemsPhoneIn = new ArrayList<>();
+    private List<RestPayoutItem> saleItemsWebOrderOnline = new ArrayList<>();
+    private List<RestPayoutItem> saleItemsWebOrder = new ArrayList<>();
 
     private Details periodDetails;
     private VerticalLayout mainLayout = new VerticalLayout();
@@ -97,8 +107,11 @@ public class RestPayoutPeriod implements Serializable {
     private File appPath = new File(System.getProperty("user.dir"));
     private File outputDir = new File(appPath,"tozip");
     private File pdfFile = null;
+    private String pdfFileName = "";
     @Value("classpath:Rest_PayStatement_Template.docx")
     private Resource resourcePayStatementTemplate;
+
+    private RestSaleSummary restSaleSummary = new RestSaleSummary();
 
     public RestPayoutPeriod(LocalDate periodStart, LocalDate periodEnd, Restaurant restaurant, RestPayoutSummary restPayoutSummary) {
         this.restPayoutSummary = restPayoutSummary;
@@ -109,6 +122,7 @@ public class RestPayoutPeriod implements Serializable {
         this.resourcePayStatementTemplate = new ClassPathResource("Rest_PayStatement_Template.docx");
         restAdjustmentRepository = Registry.getBean(RestAdjustmentRepository.class);
         adjustmentDialog = new RestPayoutAdjustmentDialog(periodStart);
+        this.pdfFileName = "VendorSalesStatement-" + this.restaurant.getName() + periodStart + "-" + periodEnd + ".pdf";
         buildPayoutPeriod();
         refresh();
     }
@@ -145,18 +159,25 @@ public class RestPayoutPeriod implements Serializable {
         NumberField periodPayoutTaxes = UIUtilities.getNumberField("Taxes", getPayoutTaxes());
         NumberField periodPayoutTotalSale = UIUtilities.getNumberField("TotalSales", getPayoutTotalSale());
         TextField periodItemCount = UIUtilities.getTextFieldRO("Count", getPayoutItemCount().toString(),"100px");
+        NumberField periodPayoutCOGS = UIUtilities.getNumberField("COGS", getCOGS());
         NumberField periodDeliveryFeeFromVendor = UIUtilities.getNumberField("Fee from Vendor",getDeliveryFeeFromVendor());
         NumberField periodCommission = UIUtilities.getNumberField("Commission", getCommissionForPayout());
-        NumberField periodCommissionPerDelivery = UIUtilities.getNumberField("Commission Per", getCommissionPerDelivery());
+        NumberField periodPrePaidSalesOrCommissionPer;
+        if(getPrePaidTotalSale()>0){
+            periodPrePaidSalesOrCommissionPer = UIUtilities.getNumberField("PrePaid Sales", getPrePaidTotalSale());
+        }else{
+            periodPrePaidSalesOrCommissionPer = UIUtilities.getNumberField("Commission Per", getCommissionPerDelivery());
+        }
         NumberField periodAdjustment = UIUtilities.getNumberField("Adjustment", getAdjustment());
         periodDetailsSummaryFields.add(
                 periodPayoutSale,
                 periodPayoutTaxes,
                 periodPayoutTotalSale,
                 periodItemCount,
+                periodPayoutCOGS,
                 periodDeliveryFeeFromVendor,
                 periodCommission,
-                periodCommissionPerDelivery,
+                periodPrePaidSalesOrCommissionPer,
                 periodAdjustment
         );
         if(hasPayoutFromExternalVendor()){
@@ -166,16 +187,17 @@ public class RestPayoutPeriod implements Serializable {
         //Grid for payout items
         Integer labelCount = getPayoutItemCount();
         String labelString = "Payout Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getPayoutTotalSale());
-        periodDetailsContent.add(getItemGrid(labelString, getPayoutRestItems(), Boolean.TRUE));
+        periodDetailsContent.add(getItemGrid(labelString, getPayoutRestItems(), Boolean.TRUE, Boolean.FALSE));
         //Grid for adjustments
         periodDetailsContent.add((getAdjustmentsGrid()));
         //Grid for cancelled items
         labelCount = getCancelledRestItems().size();
         labelString = "Cancelled Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items");
-        periodDetailsContent.add(getItemGrid(labelString, getCancelledRestItems(), Boolean.FALSE));
+        periodDetailsContent.add(getItemGrid(labelString, getCancelledRestItems(), Boolean.FALSE, Boolean.FALSE));
         //Include Total Sales if there are both phone-in and direct sales
-        if(getPhoneInSalesCount()>0){
+        if(hasNonDirectSales()){
             labelCount = getItemCount();
+            //Double totalSaleIncludingWebOrderOnline = getTotalSale() + getPrePaidTotalSale();
             labelString = "Total Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getTotalSale());
             Label totalSalesLabel = new Label(labelString);
             periodDetailsContent.add(totalSalesLabel);
@@ -190,14 +212,29 @@ public class RestPayoutPeriod implements Serializable {
             labelString = "Phone-In Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getPhoneInTotalSale());
             periodDetailsContent.add(getSalesBySaleType(labelString, getPhoneInSalesCount(), phoneInTotalSale, getSaleItemsPhoneIn(), RestPayoutItem.SaleType.PHONEIN));
         }
+        if(getWebOrderSalesCount()>0){
+            labelCount = getWebOrderSalesCount();
+            labelString = "Web Order Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getWebOrderTotalSale());
+            periodDetailsContent.add(getSalesBySaleType(labelString, getWebOrderSalesCount(), webOrderTotalSale, getSaleItemsWebOrder(), RestPayoutItem.SaleType.WEBORDER));
+        }
+        if(getWebOrderOnlineSalesCount()>0){
+            labelCount = getWebOrderOnlineSalesCount();
+            labelString = "Web Order Online Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getWebOrderOnlineTotalSale());
+            periodDetailsContent.add(getSalesBySaleType(labelString, getWebOrderOnlineSalesCount(), webOrderOnlineTotalSale, getSaleItemsWebOrderOnline(), RestPayoutItem.SaleType.WEBORDERONLINE));
+        }
     }
 
     private Details getSalesBySaleType(String label, Integer count, Double sales, List<RestPayoutItem> salesList, RestPayoutItem.SaleType saleType ) {
         Details salesDetails = UIUtilities.getDetails();
         salesDetails.setSummaryText(label);
         Boolean includeGlobalFields = Boolean.TRUE;
-        if(saleType.equals(RestPayoutItem.SaleType.PHONEIN)) includeGlobalFields = Boolean.FALSE;
-        VerticalLayout salesLayout = getItemGrid(null, salesList, includeGlobalFields);
+        if(!saleType.equals(RestPayoutItem.SaleType.DIRECT)) includeGlobalFields = Boolean.FALSE;
+        Boolean showPrePaidSaleColumn = Boolean.FALSE;
+        if(saleType.equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
+            showPrePaidSaleColumn = Boolean.TRUE;
+            includeGlobalFields = Boolean.FALSE;
+        }
+        VerticalLayout salesLayout = getItemGrid(null, salesList, includeGlobalFields, showPrePaidSaleColumn);
         salesDetails.setContent(salesLayout);
         return salesDetails;
     }
@@ -263,7 +300,7 @@ public class RestPayoutPeriod implements Serializable {
         return gridLayout;
     }
 
-    private VerticalLayout getItemGrid(String label, List<RestPayoutItem> list, Boolean includeGlobalFields){
+    private VerticalLayout getItemGrid(String label, List<RestPayoutItem> list, Boolean includeGlobalFields, Boolean showPrePaidSaleColumn){
         VerticalLayout gridLayout = UIUtilities.getVerticalLayout(true,true,false);
         if(list.size()>0){
             Grid<RestPayoutItem> grid = new Grid<>();
@@ -295,14 +332,21 @@ public class RestPayoutPeriod implements Serializable {
                         .setComparator(RestPayoutItem::getTaxes)
                         .setHeader("Tax").setTextAlign(ColumnTextAlign.END);
             }
-            grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getTotalSale()))
-                    .setComparator(RestPayoutItem::getTotalSale)
-                    .setSortable(true)
-                    .setHeader("TotalSale").setTextAlign(ColumnTextAlign.END);
-            grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDeliveryFee()))
-                    .setComparator(RestPayoutItem::getDeliveryFee)
-                    .setSortable(true)
-                    .setHeader("Delivery Fee").setTextAlign(ColumnTextAlign.END);
+            if(showPrePaidSaleColumn){
+                grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getPrePaidTotalSale()))
+                        .setComparator(RestPayoutItem::getTotalSale)
+                        .setSortable(true)
+                        .setHeader("Online TotalSale").setTextAlign(ColumnTextAlign.END);
+            }else{
+                grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getTotalSale()))
+                        .setComparator(RestPayoutItem::getTotalSale)
+                        .setSortable(true)
+                        .setHeader("TotalSale").setTextAlign(ColumnTextAlign.END);
+                grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDeliveryFee()))
+                        .setComparator(RestPayoutItem::getDeliveryFee)
+                        .setSortable(true)
+                        .setHeader("Delivery Fee").setTextAlign(ColumnTextAlign.END);
+            }
             grid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDeliveryFeeFromVendor()))
                     .setComparator(RestPayoutItem::getDeliveryFeeFromVendor)
                     .setHeader("FeeFromVendor").setTextAlign(ColumnTextAlign.END);
@@ -332,6 +376,7 @@ public class RestPayoutPeriod implements Serializable {
 
         for (TaskEntity taskEntity: taskEntityList) {
             RestPayoutItem restPayoutItem = new RestPayoutItem(taskEntity);
+
             //handle situation where external vendor like Opa Corporate needs to be invoiced per FREE delivery
             if(restaurant.getDeliveryFeeFromExternal()>0.0){
                 if(taskEntity.getDeliveryFee().equals(0.0)){
@@ -342,13 +387,20 @@ public class RestPayoutPeriod implements Serializable {
             if(restaurant.getCommissionPerDelivery()>0.0){
                 this.commissionPerDelivery = this.commissionPerDelivery + restaurant.getCommissionPerDelivery();
             }
-            //add in the deliveryFeeFromVendor for free deliveries
-            if(restaurant.getDeliveryFeeFromVendor()>0.0){
-                //only free deliveries
-                if(taskEntity.getDeliveryFee().equals(0.0)){
-                    restPayoutItem.setDeliveryFeeFromVendor(restaurant.getDeliveryFeeFromVendor());
+
+            //add in the delivery fee from vendor for Web Orders
+            if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDER) || restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
+                restPayoutItem.setDeliveryFeeFromVendor(restaurant.getDeliveryFeeFromVendorWebOrder());
+            }else{
+                //add in the deliveryFeeFromVendor for free deliveries
+                if(restaurant.getDeliveryFeeFromVendor()>0.0){
+                    //only free deliveries
+                    if(taskEntity.getDeliveryFee().equals(0.0)){
+                        restPayoutItem.setDeliveryFeeFromVendor(restaurant.getDeliveryFeeFromVendor());
+                    }
                 }
             }
+
 
             Boolean posPayment;
             if(taskEntity.getCreatedBy().equals(43L)){  //Global
@@ -357,38 +409,89 @@ public class RestPayoutPeriod implements Serializable {
                 posPayment = restaurant.getPosPhonein();
             }
 
-            if(posPayment){
+            //add commissionPerPhoneIn for restaurants like Mike's
+            if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.PHONEIN)){
                 if(restaurant.getCommissionPerPhonein()>0.0){
                     this.commissionPerDelivery = this.commissionPerDelivery + restaurant.getCommissionPerPhonein();
                 }
+            }
+
+            if(posPayment){
                 paidRestItems.add(restPayoutItem);
                 this.paidSale = this.paidSale + restPayoutItem.getSale();
                 this.paidTotalSale = this.paidTotalSale + restPayoutItem.getTotalSale();
             }else{
                 payoutRestItems.add(restPayoutItem);
-                this.payoutSale = this.payoutSale + restPayoutItem.getSale();
-                this.payoutTaxes = this.payoutTaxes + restPayoutItem.getTaxes();
-                this.payoutTotalSale = this.payoutTotalSale + restPayoutItem.getTotalSale();
-                this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutItem.getDeliveryFeeFromVendor();
+                //handle web order online differently as the restaurant already collected the funds
+                if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
+                    //do not add the taxes/totalsale as vendor already collected these
+                    this.payoutSale = this.payoutSale + restPayoutItem.getSale();
+                    this.payoutTaxes = this.payoutTaxes + restPayoutItem.getTaxes();
+                    this.payoutTotalSale = this.payoutTotalSale + restPayoutItem.getTotalSale();
+                    this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutItem.getDeliveryFeeFromVendor();
+                    this.prePaidTotalSale = this.prePaidTotalSale + restPayoutItem.getPrePaidTotalSale();
+                }else{
+                    this.payoutSale = this.payoutSale + restPayoutItem.getSale();
+                    this.payoutTaxes = this.payoutTaxes + restPayoutItem.getTaxes();
+                    this.payoutTotalSale = this.payoutTotalSale + restPayoutItem.getTotalSale();
+                    this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutItem.getDeliveryFeeFromVendor();
+                }
             }
             this.sale = this.sale + restPayoutItem.getSale();
             this.taxes = this.taxes + restPayoutItem.getTaxes();
             this.totalSale = this.totalSale + restPayoutItem.getTotalSale();
 
+            if(this.restaurantId.equals(0L)){  //custom paidToVendor is the Sale price
+                this.paidToVendor = this.paidToVendor + restPayoutItem.getSale();
+            }else{
+                this.paidToVendor = this.paidToVendor + restPayoutItem.getPaidToVendor();
+            }
+
             if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.DIRECT)){
                 saleItemsDirect.add(restPayoutItem);
                 this.directSale = this.directSale + restPayoutItem.getSale();
                 this.directTotalSale = this.directTotalSale + restPayoutItem.getTotalSale();
+            }else if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDER)){
+                saleItemsWebOrder.add(restPayoutItem);
+                this.webOrderTotalSale = this.webOrderTotalSale + restPayoutItem.getTotalSale();
+            }else if(restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
+                saleItemsWebOrderOnline.add(restPayoutItem);
+                this.webOrderOnlineTotalSale = this.webOrderOnlineTotalSale + restPayoutItem.getPrePaidTotalSale();
             }else{
                 saleItemsPhoneIn.add(restPayoutItem);
                 this.phoneInTotalSale = this.phoneInTotalSale + restPayoutItem.getTotalSale();
+            }
+
+            //Create a salesRecord for all orders
+            restSaleSummary.setCount(restSaleSummary.getCount() + 1);
+            //TODO: create a salesRecord - DO NOT INCLUDE WebOrderOnline as we do not collect for those sales
+            if(!restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
+                restSaleSummary.setSale(restSaleSummary.getSale() + restPayoutItem.getSale());
+                restSaleSummary.setTax(restSaleSummary.getTax() + restPayoutItem.getTaxes());
+                restSaleSummary.setDeliveryFee(restSaleSummary.getDeliveryFee() + taskEntity.getDeliveryFee());
+                restSaleSummary.setServiceFee(restSaleSummary.getServiceFee() + taskEntity.getServiceFee());
+                restSaleSummary.setTip(restSaleSummary.getTip() + taskEntity.getTip());
+
+                //totalSale is calculated on Global in TaskEntity from Global data and for others is the totalWithFees
+                // - neither include the tip so add it in here
+                Double totalSale = 0.0;
+                totalSale = taskEntity.getTotalSale() + taskEntity.getTip();
+
+                if(taskEntity.getPaymentMethod().equalsIgnoreCase("CASH")){
+                    restSaleSummary.setCashSale(restSaleSummary.getCashSale() + totalSale);
+                }else if(taskEntity.getPaymentMethod().equalsIgnoreCase("CARD")){
+                    restSaleSummary.setCardSale(restSaleSummary.getCardSale() + totalSale);
+                }else{
+                    restSaleSummary.setOnlineSale(restSaleSummary.getOnlineSale() + totalSale);
+                }
+
             }
         }
         this.paidItemCount = paidRestItems.size();
         this.payoutItemCount = payoutRestItems.size();
 
         //this.commissionForPayout = Utility.getInstance().round(this.payoutSale * rateInt / 100,2);
-        //System.out.println("***TESTING RATE**** payoutSale:" + this.payoutSale + "rateInt:" + rateInt + " as int:" + this.commissionForPayout + " as double:" + Utility.getInstance().round(this.payoutSale * this.commissionRate,2));
+        //log.info("***TESTING RATE**** payoutSale:" + this.payoutSale + "rateInt:" + rateInt + " as int:" + this.commissionForPayout + " as double:" + Utility.getInstance().round(this.payoutSale * this.commissionRate,2));
         // if commission rate is different for phone-in vs direct then
         //  - need to calculate commission on directSales - sales NOT directTotalSale
         //  - and phoneInTotalSales
@@ -398,7 +501,11 @@ public class RestPayoutPeriod implements Serializable {
             this.commissionForPayout = Utility.getInstance().round(commissionDirect,2);
         }else{
             Double commissionPhoneIn = this.phoneInTotalSale * this.commissionRatePhonein;
-            this.commissionForPayout = Utility.getInstance().round(commissionDirect + commissionPhoneIn,2);
+            Double commissionWebOrder = this.webOrderTotalSale * this.commissionRatePhonein;
+            Double commissionWebOrderOnline = this.webOrderOnlineTotalSale * this.commissionRatePhonein;
+            Double commissionOther = commissionPhoneIn + commissionWebOrder + commissionWebOrderOnline;
+            //TODO: talk to Tara re DO WE INCLUDE WebOrderOnline commission here
+            this.commissionForPayout = Utility.getInstance().round(commissionDirect + commissionOther,2);
         }
 
         List<TaskEntity> cancelledTaskEntityList = taskDetailRepository.getTaskEntityByDateAndRestaurantCancelled(periodStart.atStartOfDay(), periodEnd.atTime(23,59,59), restaurant.getRestaurantId());
@@ -494,8 +601,17 @@ public class RestPayoutPeriod implements Serializable {
         return Utility.getInstance().round(adjustment,2);
     }
 
+    public Double getPaidToVendor() {
+        return Utility.getInstance().round(paidToVendor,2);
+    }
+
+    public void setPaidToVendor(Double paidToVendor) {
+        this.paidToVendor = paidToVendor;
+    }
+
     public Double getOwingToVendor() {
-        this.owingToVendor = this.payoutTotalSale - this.commissionForPayout - this.commissionPerDelivery - this.deliveryFeeFromVendor - this.adjustment;
+        //TODO:: for autoload false - calc at day/task level and add up so the restaurant setting for that day can be used
+        this.owingToVendor = this.payoutTotalSale - this.commissionForPayout - this.commissionPerDelivery - this.deliveryFeeFromVendor - this.adjustment - this.prePaidTotalSale;
         return Utility.getInstance().round(owingToVendor,2);
     }
 
@@ -562,6 +678,10 @@ public class RestPayoutPeriod implements Serializable {
         return pdfFile;
     }
 
+    public String getPdfFileName() {
+        return pdfFileName;
+    }
+
     public String getRestaurantEmail() {
         return restaurantEmail;
     }
@@ -590,6 +710,8 @@ public class RestPayoutPeriod implements Serializable {
         return Utility.getInstance().round(directTotalSale,2);
     }
 
+
+
     public List<RestPayoutItem> getSaleItemsPhoneIn() {
         return saleItemsPhoneIn;
     }
@@ -610,8 +732,61 @@ public class RestPayoutPeriod implements Serializable {
         return Utility.getInstance().round(phoneInTotalSale,2);
     }
 
+
+    public List<RestPayoutItem> getSaleItemsWebOrder() {
+        return saleItemsWebOrder;
+    }
+
+    public Boolean hasWebOrderSales(){
+        if(getSaleItemsWebOrder().size()>0){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public Integer getWebOrderSalesCount(){
+        return saleItemsWebOrder.size();
+    }
+
+    public Double getWebOrderTotalSale() {
+        return Utility.getInstance().round(webOrderTotalSale,2);
+    }
+
+    public List<RestPayoutItem> getSaleItemsWebOrderOnline() {
+        return saleItemsWebOrderOnline;
+    }
+
+    public Boolean hasWebOrderOnlineSales(){
+        if(getSaleItemsWebOrderOnline().size()>0){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public Integer getWebOrderOnlineSalesCount(){
+        return saleItemsWebOrderOnline.size();
+    }
+
+    public Double getWebOrderOnlineTotalSale() {
+        return Utility.getInstance().round(webOrderOnlineTotalSale,2);
+    }
+
     public Boolean hasPayout() {
         return hasPayout;
+    }
+
+    public Boolean hasNonDirectSales(){
+        if(getPhoneInSalesCount()>0 || getWebOrderSalesCount()>0 || getWebOrderOnlineSalesCount()>0){
+            return Boolean.TRUE;
+        }else{
+            return Boolean.FALSE;
+        }
+    }
+
+    public Double getPrePaidTotalSale() {
+        return Utility.getInstance().round(prePaidTotalSale,2);
     }
 
     public static HorizontalLayout getExternalVendorItem(RestPayoutFromExternalVendor restPayoutFromExternalVendor){
@@ -623,12 +798,42 @@ public class RestPayoutPeriod implements Serializable {
         return externalVendorLayoutFields;
     }
 
-    public void createStatement(){
-        System.out.println("createPDFStatements: restaurant:" + restaurantName);
-        String outputFileExt = ".pdf";
+    public Double getCOGS(){
+        Double cogs = 0.0;
+        if(restaurant.getRestaurantId().equals(0L)){  //Custom orders = ReceiptTotal which is Sale
+            cogs = getSale();
+        }else{
+            //COGS is owingToVendor at minimum - less taxes paid as those get repaid to vendor
+            if(getOwingToVendor()>0) cogs = getOwingToVendor() - getTaxes();
+            //COGS includes POS orders so ADD the paidToVendor amount
+            //Note: restaurant returns the following...
+            //  - for payouts - the current record based on the start date of the period
+            //  - for period summaries - the non expired record
+            // Given this period summaries may not match payouts when restaurant rules change
 
-        String outputFileName = "VendorSalesStatement-" + restaurantName + periodStart + "-" + periodEnd;
-        File outputFile = new File(outputDir,outputFileName + outputFileExt);
+            if(restaurant.getPosGlobal()){
+                cogs = cogs + getPaidToVendor();
+            }else if(restaurant.getPosPhonein()){
+                cogs = cogs + getPaidToVendor();
+            }
+            log.info("getCOGS:" + getRestaurantName() + " getOwingToVendor: " + getOwingToVendor() + " getTaxes:" + getTaxes() + " PaidToVendor:" + getPaidToVendor() + " COGS:" + cogs);
+            /*
+            for (RestPayoutItem restPayoutItem: paidRestItems ) {
+                cogs = cogs + restPayoutItem.getPaidToVendor();
+                log.info("getCOGS: paidItems:" + restPayoutItem.getRestaurantName() + " sale:" + restPayoutItem.getSale() + " paidToVendor: " + restPayoutItem.getPaidToVendor() + " new COGS:" + cogs);
+            }
+             */
+        }
+        return Utility.getInstance().round(cogs,2);
+    }
+
+    public RestSaleSummary getRestSaleSummary() {
+        return restSaleSummary;
+    }
+
+    public void createStatement(){
+        log.info("createPDFStatements: restaurant:" + restaurantName);
+        File outputFile = new File(outputDir,pdfFileName);
         pdfFile = outputFile;
 
         try {
@@ -649,9 +854,7 @@ public class RestPayoutPeriod implements Serializable {
 
             context.put("restAdjustmentList", restAdjustmentList);
 
-            //List<RestPayoutItem> restPayoutItems = this.payoutRestItems;
-            // 2) Create fields metadata to manage lazy loop (#forech velocity)
-            // for table row.
+            // 2) Create fields metadata to manage lazy loop (#forech velocity) for table row.
             metadata.addFieldAsList("saleItemsDirect.getCreationDateTimeFmt()");
             metadata.addFieldAsList("saleItemsDirect.getOrderId()");
             metadata.addFieldAsList("saleItemsDirect.getSale()");
@@ -661,12 +864,9 @@ public class RestPayoutPeriod implements Serializable {
             metadata.addFieldAsList("saleItemsDirect.getDeliveryFeeFromVendor()");
             metadata.addFieldAsList("saleItemsDirect.getPaymentMethod()");
             report.setFieldsMetadata(metadata);
-
             context.put("saleItemsDirect", saleItemsDirect);
 
-            //List<RestPayoutItem> restPaidItems = this.paidRestItems;
-            // 2) Create fields metadata to manage lazy loop (#forech velocity)
-            // for table row.
+            // 2) Create fields metadata to manage lazy loop (#forech velocity) for table row.
             metadata.addFieldAsList("saleItemsPhoneIn.getCreationDateTimeFmt()");
             metadata.addFieldAsList("saleItemsPhoneIn.getOrderId()");
             metadata.addFieldAsList("saleItemsPhoneIn.getSale()");
@@ -676,8 +876,32 @@ public class RestPayoutPeriod implements Serializable {
             metadata.addFieldAsList("saleItemsPhoneIn.getDeliveryFeeFromVendor()");
             metadata.addFieldAsList("saleItemsPhoneIn.getPaymentMethod()");
             report.setFieldsMetadata(metadata);
-
             context.put("saleItemsPhoneIn", saleItemsPhoneIn);
+
+            // 2) Create fields metadata to manage lazy loop (#forech velocity) for table row.
+            metadata.addFieldAsList("saleItemsWebOrder.getCreationDateTimeFmt()");
+            metadata.addFieldAsList("saleItemsWebOrder.getOrderId()");
+            metadata.addFieldAsList("saleItemsWebOrder.getSale()");
+            metadata.addFieldAsList("saleItemsWebOrder.getTaxes()");
+            metadata.addFieldAsList("saleItemsWebOrder.getTotalSale()");
+            metadata.addFieldAsList("saleItemsWebOrder.getDeliveryFee()");
+            metadata.addFieldAsList("saleItemsWebOrder.getDeliveryFeeFromVendor()");
+            metadata.addFieldAsList("saleItemsWebOrder.getPaymentMethod()");
+            report.setFieldsMetadata(metadata);
+            context.put("saleItemsWebOrder", saleItemsWebOrder);
+
+            // 2) Create fields metadata to manage lazy loop (#forech velocity) for table row.
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getCreationDateTimeFmt()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getOrderId()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getSale()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getPrePaidTotalSale()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getTaxes()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getTotalSale()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getDeliveryFee()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getDeliveryFeeFromVendor()");
+            metadata.addFieldAsList("saleItemsWebOrderOnline.getPaymentMethod()");
+            report.setFieldsMetadata(metadata);
+            context.put("saleItemsWebOrderOnline", saleItemsWebOrderOnline);
 
             // 3) Generate report by merging Java model with the Docx
             //To PDF
@@ -685,10 +909,10 @@ public class RestPayoutPeriod implements Serializable {
             Options options = Options.getTo(ConverterTypeTo.PDF).via(ConverterTypeVia.XWPF);
             report.convert(context, options, out);
         } catch (IOException e) {
-            System.out.println("createPDFStatements: FAILED vendor:" + restaurantName + " ERROR:" + e.toString());
+            log.info("createPDFStatements: FAILED vendor:" + restaurantName + " ERROR:" + e.toString());
             e.printStackTrace();
         } catch (XDocReportException e) {
-            System.out.println("createPDFStatements: FAILED2 vendor:" + restaurantName + " ERROR:" + e.toString());
+            log.info("createPDFStatements: FAILED2 vendor:" + restaurantName + " ERROR:" + e.toString());
             e.printStackTrace();
         }
 

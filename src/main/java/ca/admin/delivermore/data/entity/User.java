@@ -1,6 +1,6 @@
 package ca.admin.delivermore.data.entity;
 
-import ca.admin.delivermore.data.Role;
+import ca.admin.delivermore.collector.data.Role;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Set;
 import javax.persistence.ElementCollection;

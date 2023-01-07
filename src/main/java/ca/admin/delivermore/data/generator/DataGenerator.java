@@ -4,12 +4,9 @@ import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.collector.data.service.OrderDetailRepository;
 import ca.admin.delivermore.collector.data.service.DriversRepository;
 import ca.admin.delivermore.collector.data.service.RestClientService;
-import ca.admin.delivermore.data.Role;
-import ca.admin.delivermore.collector.data.entity.TaskEntity;
+import ca.admin.delivermore.collector.data.Role;
 import ca.admin.delivermore.data.entity.User;
 import ca.admin.delivermore.data.service.*;
-import ca.admin.delivermore.collector.data.tookan.Driver;
-import ca.admin.delivermore.collector.data.tookan.TaskDetail;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,10 +14,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 @SpringComponent
@@ -80,14 +74,14 @@ public class DataGenerator {
             //get all drivers
             List<Driver> drivers = restClientService.getAllDrivers();
             for (Driver driver: drivers) {
-                System.out.println("Driver:" + driver.getName() + " :" + driver.toString());
+                log.info("Driver:" + driver.getName() + " :" + driver.toString());
             }
             driversRepository.saveAll(drivers);
 
              */
 
             /*
-            System.out.println("**************** RUNNING");
+            log.info("**************** RUNNING");
             //TODO:get tasks from tookan since the last date - change later
             //List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.parse("2022-08-15") );
             List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.now() );

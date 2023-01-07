@@ -14,6 +14,8 @@ import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.DayOfWeek;
@@ -26,6 +28,8 @@ import java.time.temporal.TemporalAdjusters;
 public class RestPayoutView extends Main {
 
     private VerticalLayout detailsLayout = new VerticalLayout();
+    private Logger log = LoggerFactory.getLogger(RestPayoutView.class);
+
     LocalDate defaultStartDate;
     LocalDate defaultEndDate;
 
@@ -109,12 +113,11 @@ public class RestPayoutView extends Main {
     private void buildRestPayoutDetails() {
         detailsLayout.removeAll();
 
-        System.out.println("buildRestPayoutDetails: defaultStart:" + defaultStartDate + " defaultEnd:" + defaultEndDate + " validStartDate:" + validStartDate);
+        log.info("buildRestPayoutDetails: defaultStart:" + defaultStartDate + " defaultEnd:" + defaultEndDate + " validStartDate:" + validStartDate);
 
         if(validStartDate){
-            //TODO:: put all this into a RestPayoutSummary Class
-            restPayoutSummary = new RestPayoutSummary(defaultStartDate,defaultEndDate);
-            System.out.println("buildRestPayoutDetails: summary owing:" + restPayoutSummary.getOwingToVendor());
+            restPayoutSummary = new RestPayoutSummary(defaultStartDate,defaultEndDate, Boolean.TRUE);
+            log.info("buildRestPayoutDetails: summary owing:" + restPayoutSummary.getOwingToVendor());
             detailsLayout.add(restPayoutSummary.getMainLayout());
         }
 

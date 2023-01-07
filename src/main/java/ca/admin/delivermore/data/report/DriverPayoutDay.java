@@ -45,7 +45,7 @@ public class DriverPayoutDay implements DriverPayoutInterface, Serializable {
             this.driverIncome = this.driverIncome + Utility.getInstance().round(driverPayoutEntity.getDriverIncome(),2);
             this.driverCash = this.driverCash + Utility.getInstance().round(driverPayoutEntity.getDriverCash(),2);
             this.driverPayout = this.driverPayout + Utility.getInstance().round(driverPayoutEntity.getDriverPayout(),2);
-            if(driverPayoutEntity.getPaymentMethod().equals("CARD")){
+            if(driverPayoutEntity.getPaymentMethod().equalsIgnoreCase("CARD")){
                 this.cardTip = this.cardTip + Utility.getInstance().round(driverPayoutEntity.getTip(),2);
             }
         }
@@ -185,7 +185,6 @@ public class DriverPayoutDay implements DriverPayoutInterface, Serializable {
     public String getDriverPayoutFmt(){
         return String.format("%.2f",getDriverPayout());
     }
-
     public DriverPayoutPk getDriverPayoutPk(){
         return new DriverPayoutPk(fleetId,payoutDate);
     }

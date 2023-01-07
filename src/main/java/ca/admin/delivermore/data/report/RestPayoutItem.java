@@ -16,7 +16,9 @@ public class RestPayoutItem {
 
     enum SaleType {
         DIRECT,
-        PHONEIN
+        PHONEIN,
+        WEBORDERONLINE,
+        WEBORDER
     }
 
     private Long restaurantId;
@@ -32,6 +34,9 @@ public class RestPayoutItem {
     private Double deliveryFeeFromVendor = 0.0;
     private String paymentMethod;
     private Double commissionPerDelivery = 0.0;
+    private Double prePaidTotalSale = 0.0;
+
+    private Double paidToVendor = 0.0;
 
     public RestPayoutItem(TaskEntity taskEntity) {
         this.restaurantId = taskEntity.getRestaurantId();
@@ -47,18 +52,41 @@ public class RestPayoutItem {
             this.sale = taskEntity.getGlobalSubtotal();
             this.saleType = SaleType.DIRECT;
         }else{
-            this.sale = taskEntity.getReceiptTotal();
-            this.saleType = SaleType.PHONEIN;
+            if(taskEntity.getWebOrder()){
+                if(taskEntity.getPaymentMethod().equals("ONLINE")){
+                    this.saleType = SaleType.WEBORDERONLINE;
+                    this.sale = taskEntity.getReceiptTotal();
+                    this.prePaidTotalSale = taskEntity.getReceiptTotal();
+                }else{
+                    this.saleType = SaleType.WEBORDER;
+                    this.sale = taskEntity.getReceiptTotal();
+                }
+            }else if(taskEntity.getFeesOnly()){ //custom order fees only has no SALE value so set to 0
+                this.saleType = SaleType.PHONEIN;
+                this.sale = 0.0;
+            }else{
+                this.saleType = SaleType.PHONEIN;
+                this.sale = taskEntity.getReceiptTotal();
+            }
         }
         if(taskEntity.getGlobalTotalTaxes()!=null){
             this.taxes = taskEntity.getGlobalTotalTaxes();
         }
         this.totalSale = this.sale + this.taxes;
-        this.deliveryFee = taskEntity.getDeliveryFee();
+        if(this.saleType.equals(SaleType.WEBORDERONLINE)){
+            this.deliveryFee = 0.0;
+        }else if(this.saleType.equals(SaleType.WEBORDER)){
+            this.deliveryFee = 0.0;
+        }else{
+            this.deliveryFee = taskEntity.getDeliveryFee();
+        }
         //need to set deliveryFeeFromVendor from restaurant info NOT from entity
         //TODO:: perhaps remove from entity
         //this.deliveryFeeFromVendor = taskEntity.getDeliveryFeeFromVendor();
         this.paymentMethod = taskEntity.getPaymentMethod();
+        if(taskEntity.getPaidToVendor()!=null){
+            paidToVendor = taskEntity.getPaidToVendor();
+        }
     }
 
     public Long getRestaurantId() {
@@ -167,6 +195,22 @@ public class RestPayoutItem {
 
     public void setCommissionPerDelivery(Double commissionPerDelivery) {
         this.commissionPerDelivery = commissionPerDelivery;
+    }
+
+    public Double getPrePaidTotalSale() {
+        return prePaidTotalSale;
+    }
+
+    public void setPrePaidTotalSale(Double prePaidTotalSale) {
+        this.prePaidTotalSale = prePaidTotalSale;
+    }
+
+    public Double getPaidToVendor() {
+        return paidToVendor;
+    }
+
+    public void setPaidToVendor(Double paidToVendor) {
+        this.paidToVendor = paidToVendor;
     }
 
     @Override

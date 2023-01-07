@@ -38,6 +38,7 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
     private Double driverCash = 0.0;
     private Double driverAdjustment = 0.0;
     private Double driverPayout = 0.0;
+    private Double driverCost = 0.0;
 
     private File pdfFile = null;
 
@@ -91,6 +92,9 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
 
         //add the adjustments to the payout total
         this.setDriverPayout(this.getDriverPayout() + this.getDriverAdjustment());
+
+        //add the adjustments to the driver cost
+        this.setDriverCost(this.getDriverPay() + this.getDriverAdjustment());
 
         //if this payoutWeek only contains adjustments then the fleetName will be null
         if(fleetName==null){
@@ -251,6 +255,14 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
         this.driverPayout = driverPayout;
     }
 
+    public Double getDriverCost() {
+        return Utility.getInstance().round(driverCost,2);
+    }
+
+    public void setDriverCost(Double driverCost) {
+        this.driverCost = driverCost;
+    }
+
     public Binder<DriverPayoutWeek> getWeekBinder() {
         return weekBinder;
     }
@@ -291,5 +303,10 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
     public String getDriverPayoutFmt(){
         return String.format("%.2f",getDriverPayout());
     }
+
+    public String getDriverCostFmt(){
+        return String.format("%.2f",getDriverCost());
+    }
+
 
 }

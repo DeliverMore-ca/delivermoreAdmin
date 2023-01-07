@@ -62,7 +62,7 @@ public class PayoutDocument {
     }
 
     public StreamResource getResource() {
-        //System.out.println("getResource: returning resource name:" + resource.getName() + " resource:" + resource.toString());
+        //log.info("getResource: returning resource name:" + resource.getName() + " resource:" + resource.toString());
         return resource;
     }
 

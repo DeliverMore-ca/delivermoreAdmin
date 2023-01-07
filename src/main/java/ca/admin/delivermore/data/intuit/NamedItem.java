@@ -1,0 +1,67 @@
+
+package ca.admin.delivermore.data.intuit;
+
+import javax.annotation.Generated;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({
+    "sparse",
+    "Id",
+    "DisplayName"
+})
+@Generated("jsonschema2pojo")
+public class NamedItem {
+
+    @JsonProperty("sparse")
+    private Boolean sparse;
+    @JsonProperty("Id")
+    private String id;
+    @JsonProperty("DisplayName")
+    @JsonAlias("FullyQualifiedName")
+    private String displayName;
+
+    @JsonProperty("sparse")
+    public Boolean getSparse() {
+        return sparse;
+    }
+
+    @JsonProperty("sparse")
+    public void setSparse(Boolean sparse) {
+        this.sparse = sparse;
+    }
+
+    @JsonProperty("Id")
+    public String getId() {
+        return id;
+    }
+
+    @JsonProperty("Id")
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    @JsonProperty("DisplayName")
+    @JsonAlias("FullyQualifiedName")
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    @JsonProperty("DisplayName")
+    @JsonAlias("FullyQualifiedName")
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    @Override
+    public String toString() {
+        return "NamedItem{" +
+                ", displayName='" + displayName + '\'' +
+                "id='" + id + '\'' +
+                '}';
+    }
+}

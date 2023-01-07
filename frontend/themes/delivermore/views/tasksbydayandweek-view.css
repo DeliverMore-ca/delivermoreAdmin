@@ -1,0 +1,11 @@
+
+.task-record {
+    background-color: yellow;
+}
+
+
+
+:host(.task-record) [part~="cell"] {
+    background-color: red;
+}
+

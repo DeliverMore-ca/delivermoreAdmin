@@ -139,7 +139,7 @@ public class ListEditor extends VerticalLayout {
     }
 
     private void addItemToList(){
-        //System.out.println("addItemToList: addField value:" + addField.getValue() + " items size:" + items.size());
+        //log.info("addItemToList: addField value:" + addField.getValue() + " items size:" + items.size());
         if(addField.getValue()!=null && !addField.getValue().isEmpty()){
             if(items.contains(addField.getValue())){
                 UIUtilities.showNotification("Item '" + addField.getValue() + "' already exists in the list.");
@@ -157,7 +157,7 @@ public class ListEditor extends VerticalLayout {
                 addField.setValue("");
             }
         }
-        //System.out.println("addItemToList: AFTER addField value:" + addField.getValue() + " items size:" + items.size());
+        //log.info("addItemToList: AFTER addField value:" + addField.getValue() + " items size:" + items.size());
 
     }
 
