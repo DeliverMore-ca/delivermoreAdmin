@@ -22,7 +22,7 @@ public class NamedItem {
     @JsonProperty("Id")
     private String id;
     @JsonProperty("DisplayName")
-    @JsonAlias("FullyQualifiedName")
+    @JsonAlias({"FullyQualifiedName", "Name"})
     private String displayName;
 
     @JsonProperty("sparse")
@@ -46,13 +46,13 @@ public class NamedItem {
     }
 
     @JsonProperty("DisplayName")
-    @JsonAlias("FullyQualifiedName")
+    @JsonAlias({"FullyQualifiedName", "Name"})
     public String getDisplayName() {
         return displayName;
     }
 
     @JsonProperty("DisplayName")
-    @JsonAlias("FullyQualifiedName")
+    @JsonAlias({"FullyQualifiedName", "Name"})
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
     }

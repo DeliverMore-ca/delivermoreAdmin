@@ -9,16 +9,21 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
     "Id",
+    "LineNum",
     "Description",
     "Amount",
     "DetailType",
-    "JournalEntryLineDetail"
+    "JournalEntryLineDetail",
+    "SalesItemLineDetail",
+    "SubTotalLineDetail"
 })
 @Generated("jsonschema2pojo")
 public class Line {
 
     @JsonProperty("Id")
     private String id;
+    @JsonProperty("LineNum")
+    private Integer lineNum;
     @JsonProperty("Description")
     private String description;
     @JsonProperty("Amount")
@@ -27,7 +32,10 @@ public class Line {
     private String detailType;
     @JsonProperty("JournalEntryLineDetail")
     private JournalEntryLineDetail journalEntryLineDetail;
-
+    @JsonProperty("SalesItemLineDetail")
+    private SalesItemLineDetail salesItemLineDetail;
+    @JsonProperty("SubTotalLineDetail")
+    private SubTotalLineDetail subTotalLineDetail;
     @JsonProperty("Id")
     public String getId() {
         return id;
@@ -36,6 +44,16 @@ public class Line {
     @JsonProperty("Id")
     public void setId(String id) {
         this.id = id;
+    }
+
+    @JsonProperty("LineNum")
+    public Integer getLineNum() {
+        return lineNum;
+    }
+
+    @JsonProperty("LineNum")
+    public void setLineNum(Integer lineNum) {
+        this.lineNum = lineNum;
     }
 
     @JsonProperty("Description")
@@ -78,14 +96,32 @@ public class Line {
         this.journalEntryLineDetail = journalEntryLineDetail;
     }
 
+    @JsonProperty("SalesItemLineDetail")
+    public SalesItemLineDetail getSalesItemLineDetail() {
+        return salesItemLineDetail;
+    }
+
+    @JsonProperty("SalesItemLineDetail")
+    public void setSalesItemLineDetail(SalesItemLineDetail salesItemLineDetail) {
+        this.salesItemLineDetail = salesItemLineDetail;
+    }
+
+    @JsonProperty("SubTotalLineDetail")
+    public SubTotalLineDetail getSubTotalLineDetail() {
+        return subTotalLineDetail;
+    }
+
     @Override
     public String toString() {
         return "Line{" +
                 "id='" + id + '\'' +
+                ", lineNum=" + lineNum +
                 ", description='" + description + '\'' +
                 ", amount=" + amount +
                 ", detailType='" + detailType + '\'' +
                 ", journalEntryLineDetail=" + journalEntryLineDetail +
+                ", salesItemLineDetail=" + salesItemLineDetail +
+                ", subTotalLineDetail=" + subTotalLineDetail +
                 '}';
     }
 }

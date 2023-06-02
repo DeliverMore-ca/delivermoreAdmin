@@ -1,9 +1,14 @@
 package ca.admin.delivermore.views.report;
 
 import ca.admin.delivermore.collector.data.Utility;
+import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
+import ca.admin.delivermore.collector.data.entity.TaskEntity;
+import ca.admin.delivermore.data.intuit.SalesReceipt;
 import ca.admin.delivermore.data.report.*;
+import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
 import ca.admin.delivermore.views.MainLayout;
 import ca.admin.delivermore.views.UIUtilities;
+import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import com.vaadin.componentfactory.DateRange;
 import com.vaadin.componentfactory.EnhancedDateRangePicker;
 import com.vaadin.flow.component.Component;
@@ -18,16 +23,19 @@ import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
+import com.vaadin.flow.data.provider.ListDataProvider;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
 import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.PreserveOnRefresh;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
-import com.vaadin.flow.server.auth.AnonymousAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vaadin.olli.FileDownloadWrapper;
 
+import javax.annotation.security.RolesAllowed;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -35,17 +43,19 @@ import java.nio.file.Files;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
 import java.util.List;
 
 @PageTitle("Period Summary")
 @Route(value = "periodsummary", layout = MainLayout.class)
-@AnonymousAllowed
-public class PeriodSummaryView extends Main {
+@RolesAllowed("ADMIN")
+public class PeriodSummaryView extends Main implements TaskListRefreshNeededListener {
 
     private Logger log = LoggerFactory.getLogger(PeriodSummaryView.class);
     private VerticalLayout detailsLayout = new VerticalLayout();
     private EnhancedDateRangePicker rangeDatePicker = new EnhancedDateRangePicker("Select summary period:");
+    private Button createSalesReceiptButton = new Button("QBO:Create Sales Receipt");
+    private TaskEditDialog taskEditDialog = new TaskEditDialog();
+
     RestPayoutSummary restPayoutSummary;
     DriverPayoutPeriod driverPayoutPeriod;
 
@@ -68,7 +78,58 @@ public class PeriodSummaryView extends Main {
         toolbar.setPadding(true);
         toolbar.setAlignItems(FlexComponent.Alignment.BASELINE);
         toolbar.addClassName("toolbar");
+
+        //add create sales receipt button
+        createSalesReceiptButton.setDisableOnClick(true);
+        createSalesReceiptButton.addClickListener(e -> {
+            createSalesReceipt();
+            createSalesReceiptButton.setEnabled(true);
+        });
+        toolbar.add(createSalesReceiptButton);
+
         return toolbar;
+    }
+
+    private void createSalesReceipt() {
+        SalesReceipt salesReceipt = new SalesReceipt();
+        String prefix = "Sales_";
+        String prefixMemo = "Period Sales";
+        String commonName = "Period Sales";
+        salesReceipt.setDocNumber(prefix,endDate);
+        salesReceipt.setTxnDate(endDate);
+        salesReceipt.setPrivateNote(prefixMemo,startDate,endDate);
+        log.info("createSalesReceipt: DocNumber:" + salesReceipt.getDocNumber());
+        if(salesReceipt.setCustomerRef(commonName)){
+            if(salesReceipt.setPaymentMethodRef(commonName)){
+                if(salesReceipt.setDepositToAccountRef(commonName)){
+                    //add all the needed lines
+                    salesReceipt.addLine(1,restPayoutSummary.getRestSaleSummary().getSale(),"Period Sales:Sale Income","Total Sales Income:Sale Income","Sale Income (+)");
+                    salesReceipt.addLine(2,restPayoutSummary.getSaleSummaryPassThru().getDeliveryFee(),"Period Sales:PassThru Delivery Fee Income","Total Sales Income:Fee Income:PassThru Fee Income:Delivery Fee Income","PassThru Delivery Fee Income (+)");
+                    salesReceipt.addLine(3,restPayoutSummary.getSaleSummaryPassThru().getServiceFee(),"Period Sales:PassThru Service Fee Income","Total Sales Income:Fee Income:PassThru Fee Income:Service Fee Income","PassThru Service Fee Income (+)");
+                    salesReceipt.addLine(4,restPayoutSummary.getSaleSummaryOther().getDeliveryFee(),"Period Sales:Other Delivery Fee Income","Total Sales Income:Fee Income:Other Fee Income:Delivery Fee Income","Other Delivery Fee Income (+)");
+                    salesReceipt.addLine(5,restPayoutSummary.getSaleSummaryOther().getServiceFee(),"Period Sales:Other Service Fee Income","Total Sales Income:Fee Income:Other Fee Income:Service Fee Income","Other Service Fee Income (+)");
+                    salesReceipt.addLine(6,restPayoutSummary.getRestSaleSummary().getTax(),"Period Sales:Sales tax","Sales Tax Payable","Sales tax (+)");
+                    salesReceipt.addLine(7,restPayoutSummary.getRestSaleSummary().getTip(),"Period Sales:Tips payable","Tips payable","Tips payable (+)");
+                    salesReceipt.addLine(8,(-1*restPayoutSummary.getRestSaleSummary().getCashSale()),"Period Sales:Cash","Cash on hand","Cash (-)");
+                    salesReceipt.addLine(9,(-1*restPayoutSummary.getRestSaleSummary().getCardSale()),"Period Sales:Card Sale","Card/Online Payment Clearing","Card Sale (-)");
+                    salesReceipt.addLine(10,(-1*restPayoutSummary.getRestSaleSummary().getOnlineSale()),"Period Sales:Online Sale","Card/Online Payment Clearing","Online Sale (-)");
+                }
+            }
+        }
+        if(salesReceipt.getErrorProcessing()){
+            log.info("createSalesReceipt: Error creating Sales Receipt DocNumber:" + salesReceipt.getDocNumber());
+        }else{
+            QBOResult qboResult = salesReceipt.post();
+            if(qboResult.getSuccess()){
+                log.info("createSalesReceipt: Created Sales Receipt DocNumber:" + salesReceipt.getDocNumber());
+                UIUtilities.showNotification("Created Sales Receipt DocNumber:" + salesReceipt.getDocNumber());
+            }else{
+                log.info("createSalesReceipt: Failed creating Sales Receipt DocNumber:" + salesReceipt.getDocNumber() + " result:" + qboResult.getResult());
+                //TODO: need to test show notification error
+                UIUtilities.showNotificationError("Failed to created Sales Receipt DocNumber:" + salesReceipt.getDocNumber());
+            }
+        }
+
     }
 
     private Component getContent() {
@@ -98,6 +159,7 @@ public class PeriodSummaryView extends Main {
             startDate = rangeDatePicker.getValue().getStartDate();
             endDate = rangeDatePicker.getValue().getEndDate();
             if(startDate!=null){
+                createSalesReceiptButton.setEnabled(false);
                 buildPeriodDetails();
             }
         });
@@ -123,6 +185,7 @@ public class PeriodSummaryView extends Main {
         detailsLayout.add(missingPOSDataDetails.buildMissingPOSData(startDate,endDate));
         detailsLayout.add(buildRestSaleSummary());
         detailsLayout.add(buildDriverPayoutSummary());
+        //createSalesReceiptButton.setEnabled(true);
 
     }
 
@@ -146,6 +209,7 @@ public class PeriodSummaryView extends Main {
         //use payoutTaxes as taxes includes places like Smiley's where the taxes have already been paid direct under Wise
         NumberField salesTaxPayableField = UIUtilities.getNumberField("Sales Tax",restPayoutSummary.getPayoutTaxes());
         salesTaxPayableField.setWidth(fieldWidth);
+
         topSummaryRow.setVerticalComponentAlignment(FlexComponent.Alignment.END);
         topSummaryRow.add(totalFundsField,totalSalesCOGSField,driverCostField,driverTipsField,salesTaxPayableField);
 
@@ -166,30 +230,68 @@ public class PeriodSummaryView extends Main {
 
     private Details buildRestSaleSummary() {
         Details restSaleSummaryDetails = UIUtilities.getDetails();
+        restSaleSummaryDetails.setSizeUndefined();
         VerticalLayout summaryHeader = UIUtilities.getVerticalLayout();
-        HorizontalLayout summaryHeaderRow = UIUtilities.getHorizontalLayout();
+        HorizontalLayout summaryHeaderRow = UIUtilities.getHorizontalLayout(false,true,false);
         VerticalLayout summaryHeaderCol1 = UIUtilities.getVerticalLayout();
         VerticalLayout summaryHeaderCol2 = UIUtilities.getVerticalLayout();
         VerticalLayout summaryHeaderCol3 = UIUtilities.getVerticalLayout();
-        NumberField totalSaleField= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getRestSaleSummary().getSalesTotal());
-        NumberField saleField= UIUtilities.getNumberField("Sale",restPayoutSummary.getRestSaleSummary().getSale());
-        NumberField taxField= UIUtilities.getNumberField("Tax",restPayoutSummary.getRestSaleSummary().getTax());
-        NumberField deliveryFeeField= UIUtilities.getNumberField("Del Fee",restPayoutSummary.getRestSaleSummary().getDeliveryFee());
-        NumberField serviceFeeField= UIUtilities.getNumberField("Srv Fee",restPayoutSummary.getRestSaleSummary().getServiceFee());
-        NumberField tipField= UIUtilities.getNumberField("Tips",restPayoutSummary.getRestSaleSummary().getTip());
+        VerticalLayout summaryHeaderCol4 = UIUtilities.getVerticalLayout();
+        VerticalLayout summaryHeaderCol5 = UIUtilities.getVerticalLayout();
+
+        Label salesLabel1 = new Label("Pass Thru");
+        NumberField totalSaleField1= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getSaleSummaryPassThru().getSalesTotal());
+        NumberField saleField1= UIUtilities.getNumberField("Sale",restPayoutSummary.getSaleSummaryPassThru().getSale());
+        NumberField taxField1= UIUtilities.getNumberField("Tax",restPayoutSummary.getSaleSummaryPassThru().getTax());
+        NumberField deliveryFeeField1= UIUtilities.getNumberField("Del Fee",restPayoutSummary.getSaleSummaryPassThru().getDeliveryFee());
+        NumberField serviceFeeField1= UIUtilities.getNumberField("Srv Fee",restPayoutSummary.getSaleSummaryPassThru().getServiceFee());
+        NumberField tipField1= UIUtilities.getNumberField("Tips",restPayoutSummary.getSaleSummaryPassThru().getTip());
+        IntegerField countField1 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getSaleSummaryPassThru().getCount());
+
+        Label salesLabel2 = new Label("Other");
+        NumberField totalSaleField2= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getSaleSummaryOther().getSalesTotal());
+        NumberField saleField2= UIUtilities.getNumberField("Sale",restPayoutSummary.getSaleSummaryOther().getSale());
+        NumberField taxField2= UIUtilities.getNumberField("Tax",restPayoutSummary.getSaleSummaryOther().getTax());
+        NumberField deliveryFeeField2= UIUtilities.getNumberField("Del Fee",restPayoutSummary.getSaleSummaryOther().getDeliveryFee());
+        NumberField serviceFeeField2= UIUtilities.getNumberField("Srv Fee",restPayoutSummary.getSaleSummaryOther().getServiceFee());
+        NumberField tipField2= UIUtilities.getNumberField("Tips",restPayoutSummary.getSaleSummaryOther().getTip());
+        IntegerField countField2 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getSaleSummaryOther().getCount());
+
+        Label salesLabel3 = new Label("All Sales");
+        NumberField totalSaleField3= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getRestSaleSummary().getSalesTotal());
+        NumberField saleField3= UIUtilities.getNumberField("Sale",restPayoutSummary.getRestSaleSummary().getSale());
+        NumberField taxField3= UIUtilities.getNumberField("Tax",restPayoutSummary.getRestSaleSummary().getTax());
+        NumberField deliveryFeeField3= UIUtilities.getNumberField("Del Fee",restPayoutSummary.getRestSaleSummary().getDeliveryFee());
+        NumberField serviceFeeField3= UIUtilities.getNumberField("Srv Fee",restPayoutSummary.getRestSaleSummary().getServiceFee());
+        NumberField tipField3= UIUtilities.getNumberField("Tips",restPayoutSummary.getRestSaleSummary().getTip());
+        IntegerField countField3 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getRestSaleSummary().getCount());
+
+        Label salesLabel4 = new Label("Funds");
         NumberField totalFundsField= UIUtilities.getNumberField("Total Funds",restPayoutSummary.getRestSaleSummary().getFundsTotal());
         NumberField cashSaleField= UIUtilities.getNumberField("Cash Sale",restPayoutSummary.getRestSaleSummary().getCashSale());
         NumberField cardSaleField= UIUtilities.getNumberField("Card Sale",restPayoutSummary.getRestSaleSummary().getCardSale());
         NumberField onlineSaleField= UIUtilities.getNumberField("Online Sale",restPayoutSummary.getRestSaleSummary().getOnlineSale());
+
+        Label salesLabel5 = new Label("Other info");
+        NumberField salesMinusFundsTotalField = UIUtilities.getNumberField("Sales - Funds",restPayoutSummary.getRestSaleSummary().getSalesMinusFundsTotal());
         NumberField owingToVendorField = UIUtilities.getNumberField("Owing to vendors",restPayoutSummary.getOwingToVendor());
         NumberField cogsField = UIUtilities.getNumberField("COGS",restPayoutSummary.getCOGS());
-        summaryHeaderCol1.add(totalSaleField,saleField,taxField,deliveryFeeField,serviceFeeField,tipField);
-        summaryHeaderCol2.add(totalFundsField,cashSaleField,cardSaleField,onlineSaleField);
-        summaryHeaderCol3.add(owingToVendorField,cogsField);
+        summaryHeaderCol1.add(salesLabel1,totalSaleField1,saleField1,taxField1,deliveryFeeField1,serviceFeeField1,tipField1,countField1);
+        summaryHeaderCol2.add(salesLabel2,totalSaleField2,saleField2,taxField2,deliveryFeeField2,serviceFeeField2,tipField2,countField2);
+        summaryHeaderCol3.add(salesLabel3,totalSaleField3,saleField3,taxField3,deliveryFeeField3,serviceFeeField3,tipField3,countField3);
+        summaryHeaderCol4.add(salesLabel4,totalFundsField,cashSaleField,cardSaleField,onlineSaleField);
+        summaryHeaderCol5.add(salesLabel5,salesMinusFundsTotalField,owingToVendorField,cogsField);
         String label = "Sales Summary (" + restPayoutSummary.getRestSaleSummary().getCount() + " sales):";
         summaryHeader.add(new Label(label),summaryHeaderRow);
-        summaryHeaderRow.add(summaryHeaderCol1,summaryHeaderCol2,summaryHeaderCol3);
+        summaryHeaderRow.add(summaryHeaderCol1,summaryHeaderCol2,summaryHeaderCol3,summaryHeaderCol4,summaryHeaderCol5);
         restSaleSummaryDetails.setSummary(summaryHeader);
+        if(!restPayoutSummary.getRestSaleSummary().getSalesMinusFundsTotal().equals(0.0)){
+            restSaleSummaryDetails.setOpened(true);
+            createSalesReceiptButton.setEnabled(false);
+        }else{
+            restSaleSummaryDetails.setOpened(false);
+            createSalesReceiptButton.setEnabled(true);
+        }
         Grid<RestPayoutPeriod> grid = new Grid<>();
         restSaleSummaryDetails.setContent(grid);
         grid.setItems(restPayoutSummary.getRestPayoutPeriodList());
@@ -199,7 +301,10 @@ public class PeriodSummaryView extends Main {
         grid.addThemeVariants(GridVariant.LUMO_COMPACT);
         grid.setColumnReorderingAllowed(true);
         grid.addComponentColumn(item -> {
-            Icon editIcon = new Icon("lumo", "edit");
+            Icon editIcon = new Icon("vaadin", "file-text");
+            editIcon.setColor(UIUtilities.iconColorNormal);
+            editIcon.setTooltipText("Vendor Report (pdf)");
+            editIcon.setSize("16px");
             FileDownloadWrapper downloadWrapper = new FileDownloadWrapper(
                     new StreamResource(item.getPdfFileName(), () -> {
                         try {
@@ -225,8 +330,9 @@ public class PeriodSummaryView extends Main {
                 item.createStatement();
             });
             return downloadWrapper;
-        }).setWidth("75px").setFlexGrow(0).setFrozen(true);
+        }).setWidth("50px").setFlexGrow(0).setFrozen(true);
         grid.addColumn(RestPayoutPeriod::getRestaurantName).setHeader("Restaurant").setFrozen(true);
+        grid.addColumn(RestPayoutPeriod::getPeriodRange).setHeader("Period");
         grid.addColumn(item -> item.getRestSaleSummary().getSalesTotal()).setHeader("Sale Total");
         grid.addColumn(item -> item.getRestSaleSummary().getFundsTotal()).setHeader("Funds Total");
         grid.addColumn(item -> item.getRestSaleSummary().getSalesMinusFundsTotal()).setHeader("Diff");
@@ -234,7 +340,11 @@ public class PeriodSummaryView extends Main {
         grid.addColumn(item -> item.getRestSaleSummary().getSale()).setHeader("Sale");
         grid.addColumn(item -> item.getRestSaleSummary().getTax()).setHeader("Tax");
         grid.addColumn(item -> item.getRestSaleSummary().getDeliveryFee()).setHeader("Del Fee");
+        grid.addColumn(item -> item.getSaleSummaryPassThru().getDeliveryFee()).setHeader("PassThru Del Fee");
+        grid.addColumn(item -> item.getSaleSummaryOther().getDeliveryFee()).setHeader("Other Del Fee");
         grid.addColumn(item -> item.getRestSaleSummary().getServiceFee()).setHeader("Srv Fee");
+        grid.addColumn(item -> item.getSaleSummaryPassThru().getServiceFee()).setHeader("PassThru Srv Fee");
+        grid.addColumn(item -> item.getSaleSummaryOther().getServiceFee()).setHeader("Other Srv Fee");
         grid.addColumn(item -> item.getRestSaleSummary().getTip()).setHeader("Tip");
         grid.addColumn(item -> item.getRestSaleSummary().getCashSale()).setHeader("Cash Sale");
         grid.addColumn(item -> item.getRestSaleSummary().getCardSale()).setHeader("Card Sale");
@@ -242,11 +352,55 @@ public class PeriodSummaryView extends Main {
         grid.addColumn(RestPayoutPeriod::getOwingToVendor).setHeader("Owing to Vendor");
         grid.addColumn(RestPayoutPeriod::getPaidToVendor).setHeader("Paid to Vendor");
         grid.addColumn(RestPayoutPeriod::getCOGS).setHeader("COGS");
+
+        //TODO: add a detail renderer
+        grid.setItemDetailsRenderer(new ComponentRenderer<>(item -> {
+            VerticalLayout div = new VerticalLayout();
+            List<RestSaleSummary> list = item.getRestSaleSummaryList();
+            log.info("ItemDetailsRenderer: size" + list.size());
+
+            Grid<RestSaleSummary> details = new Grid<>();
+            //details.setSizeFull();
+            //details.addThemeNames("no-row-borders", "row-stripes", "no-headers");
+            details.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+            details.addThemeVariants(GridVariant.LUMO_COMPACT);
+            if (!list.isEmpty()) {
+                details.setItems(list);
+                //details.setDataProvider(new ListDataProvider<>(list));
+                //details.setHeightByRows(true);
+                details.setWidth("900px");
+                details.setMaxHeight("400px");
+                details.setMinHeight("200px");
+                div.setSizeFull();
+                div.add(details);
+            }
+            details.addComponentColumn(detailItem -> {
+                Icon editIcon = new Icon("lumo", "edit");
+                editIcon.setTooltipText("Edit/View Task");
+                editIcon.addClickListener(e -> {
+                    taskEditDialog.setDialogMode(TaskEditDialog.DialogMode.EDIT);
+                    taskEditDialog.dialogOpen(detailItem.getJobId());
+                });
+                return editIcon;
+            }).setWidth("50px").setFlexGrow(0);
+
+            details.addColumn(new LocalDateTimeRenderer<>(RestSaleSummary::getDateTime,"MM-dd HH:mm")).setHeader("Created");
+            details.addColumn(RestSaleSummary::getSalesTotal).setHeader("Sales Total");
+            details.addColumn(RestSaleSummary::getFundsTotal).setHeader("Funds Total");
+            details.addColumn(RestSaleSummary::getSalesMinusFundsTotal).setHeader("Dif");
+            details.addColumn(RestSaleSummary::getSale).setHeader("Sale");
+            details.addColumn(RestSaleSummary::getTax).setHeader("Tax");
+            details.addColumn(RestSaleSummary::getDeliveryFee).setHeader("Del Fee");
+            details.addColumn(RestSaleSummary::getServiceFee).setHeader("Srv Fee");
+            return div;
+        }));
+
         return restSaleSummaryDetails;
     }
 
     private Details buildDriverPayoutSummary() {
         Details driverPayoutSummaryDetails = UIUtilities.getDetails();
+        driverPayoutSummaryDetails.setSizeUndefined();
         HorizontalLayout summaryHeader = UIUtilities.getHorizontalLayout();
         NumberField driverCostField = UIUtilities.getNumberField("Cost",driverPayoutPeriod.getDriverCost());
         NumberField driverPayField = UIUtilities.getNumberField("Pay",driverPayoutPeriod.getDriverPay());
@@ -276,4 +430,8 @@ public class PeriodSummaryView extends Main {
     }
 
 
+    @Override
+    public void taskListRefreshNeeded() {
+        buildPeriodDetails();
+    }
 }

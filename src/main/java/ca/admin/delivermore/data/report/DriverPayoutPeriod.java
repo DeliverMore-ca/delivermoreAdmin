@@ -2,6 +2,7 @@ package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
+import ca.admin.delivermore.data.intuit.Intuit;
 import ca.admin.delivermore.data.intuit.JournalEntry;
 import ca.admin.delivermore.data.entity.DriverAdjustment;
 import ca.admin.delivermore.data.entity.DriverCardTip;
@@ -9,6 +10,7 @@ import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
+import com.vaadin.flow.component.notification.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -367,13 +369,18 @@ public class DriverPayoutPeriod {
                     String driverName = partMonthDriverPayoutWeekMap.get(fleetId).getFleetName();
                     Double payout = partMonthDriverPayoutWeekMap.get(fleetId).getDriverPayout();
                     if(payout>0.0){
-                        journalEntry.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                        journalEntry.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Employee,driverName);
                     }else if(payout<0.0){
-                        journalEntry.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                        journalEntry.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", Intuit.EntityType.Employee,driverName);
                     }
                 }
             }
-            journalEntries.add(journalEntry);
+            if(!journalEntry.getErrorProcessing()){  //only add if the journalEntry has no errors during processing
+                log.info("createJournalEntries: journalEntry:" + journalEntry);
+                journalEntries.add(journalEntry);
+            }else{
+                log.info("createJournalEntries: failed creating journalEntry:" + journalEntry);
+            }
 
             //build second part of period
             JournalEntry journalEntry2 = new JournalEntry();
@@ -396,13 +403,19 @@ public class DriverPayoutPeriod {
                         payout = driverPayoutWeekMap.get(fleetId).getDriverPayout();
                     }
                     if(payout>0.0){
-                        journalEntry2.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                        journalEntry2.addLine(payout, JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Employee,driverName);
                     }else if(payout<0.0){
-                        journalEntry2.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverName);
+                        journalEntry2.addLine(Math.abs(payout), JournalEntry.PostingType.Debit,"Chequing","", Intuit.EntityType.Employee,driverName);
                     }
                 }
             }
-            journalEntries.add(journalEntry2);
+            if(!journalEntry2.getErrorProcessing()){  //only add if the journalEntry has no errors during processing
+                log.info("createJournalEntries: journalEntry2:" + journalEntry2);
+                journalEntries.add(journalEntry2);
+            }else{
+                log.info("createJournalEntries: failed creating journalEntry2:" + journalEntry2);
+            }
+
         }else{
             journalEntry.addLine(getDriverPay(), JournalEntry.PostingType.Debit,"COGS Driver:Driver Pay","");
             log.info("createJournalEntries: getDriverPay:" + getDriverPay());
@@ -414,15 +427,19 @@ public class DriverPayoutPeriod {
             log.info("createJournalEntries: getDriverCash:" + getDriverCash());
             for (DriverPayoutWeek driverPayoutWeek: getDriverPayoutWeekList()) {
                 if(driverPayoutWeek.getDriverPayout()>0.0){
-                    journalEntry.addLine(driverPayoutWeek.getDriverPayout(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Employee,driverPayoutWeek.getFleetName());
+                    journalEntry.addLine(driverPayoutWeek.getDriverPayout(), JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Employee,driverPayoutWeek.getFleetName());
                     log.info("createJournalEntries: getDriverPayout credit:" + driverPayoutWeek.getDriverPayout());
                 }else if(driverPayoutWeek.getDriverPayout()<0.0){
-                    journalEntry.addLine(Math.abs(driverPayoutWeek.getDriverPayout()), JournalEntry.PostingType.Debit,"Chequing","", JournalEntry.EntityType.Employee,driverPayoutWeek.getFleetName());
+                    journalEntry.addLine(Math.abs(driverPayoutWeek.getDriverPayout()), JournalEntry.PostingType.Debit,"Chequing","", Intuit.EntityType.Employee,driverPayoutWeek.getFleetName());
                     log.info("createJournalEntries: getDriverPayout debit:" + Math.abs(driverPayoutWeek.getDriverPayout()));
                 }
             }
-            log.info("createJournalEntries: journalEntry:" + journalEntry);
-            journalEntries.add(journalEntry);
+            if(!journalEntry.getErrorProcessing()){  //only add if the journalEntry has no errors during processing
+                log.info("createJournalEntries: journalEntry:" + journalEntry);
+                journalEntries.add(journalEntry);
+            }else{
+                log.info("createJournalEntries: failed creating journalEntry:" + journalEntry);
+            }
         }
     }
 
@@ -449,15 +466,20 @@ public class DriverPayoutPeriod {
         }
 
         //create and save a journalEntry
-        for (JournalEntry journalEntry: journalEntries) {
-            String journalFileName = journalEntry.getFileName();
-            File journalFile = new File(outputDir,journalFileName);
+        if(journalEntries.size()==0){
+            log.info("getPayoutDocuments: no journalEntries found");
+            Notification.show("Failed: no journal entries created. You may need to connect to QBO");
+        }else{
+            for (JournalEntry journalEntry: journalEntries) {
+                String journalFileName = journalEntry.getFileName();
+                File journalFile = new File(outputDir,journalFileName);
 
-            QBOResult qboResult = journalEntry.save(journalFile);
-            if(qboResult.getSuccess()){
-                payoutDocumentList.add(new PayoutDocument(journalFileName, journalFile, ""));
-            }else{
-                log.info("getPayoutDocuments: error saving journalEntry to file:" + journalFileName);
+                QBOResult qboResult = journalEntry.save(journalFile);
+                if(qboResult.getSuccess()){
+                    payoutDocumentList.add(new PayoutDocument(journalFileName, journalFile, ""));
+                }else{
+                    log.info("getPayoutDocuments: error saving journalEntry to file:" + journalFileName);
+                }
             }
         }
 

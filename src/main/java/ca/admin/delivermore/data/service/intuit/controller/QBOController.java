@@ -1,10 +1,7 @@
 package ca.admin.delivermore.data.service.intuit.controller;
 
 import ca.admin.delivermore.collector.data.Config;
-import ca.admin.delivermore.data.intuit.JournalEntry;
-import ca.admin.delivermore.data.intuit.JournalEntryResult;
-import ca.admin.delivermore.data.intuit.NamedItem;
-import ca.admin.delivermore.data.intuit.QueryResult;
+import ca.admin.delivermore.data.intuit.*;
 import ca.admin.delivermore.data.service.intuit.domain.BearerTokenResponse;
 import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
 import ca.admin.delivermore.data.service.intuit.helper.HttpHelper;
@@ -89,6 +86,11 @@ public class QBOController {
                         //refresh tokens
                         logger.info("received 401 during companyinfo call, refreshing tokens now");
                         BearerTokenResponse bearerTokenResponse = refreshTokenService.refresh();
+                        if(bearerTokenResponse==null){
+                            logger.info("executeQuery: failed refreshing token");
+                            qboResult.setFailed("QBO Process Failed","Failed refreshing token");
+                            return qboResult;
+                        }
                         Config.getInstance().setQBOToken(bearerTokenResponse.getAccessToken());
                         Config.getInstance().setQBORefreshToken(bearerTokenResponse.getRefreshToken());
 
@@ -169,6 +171,11 @@ public class QBOController {
                         //refresh tokens
                         logger.info("createJournalEntry: received 401 during call, refreshing tokens now");
                         BearerTokenResponse bearerTokenResponse = refreshTokenService.refresh();
+                        if(bearerTokenResponse==null){
+                            logger.info("executeQuery: failed refreshing token");
+                            qboResult.setFailed("QBO Process Failed","Failed refreshing token");
+                            return qboResult;
+                        }
                         Config.getInstance().setQBOToken(bearerTokenResponse.getAccessToken());
                         Config.getInstance().setQBORefreshToken(bearerTokenResponse.getRefreshToken());
 
@@ -221,8 +228,8 @@ public class QBOController {
         journalEntry.setTxnDate("2022-09-10"); //format is YYYY-MM-DD
         journalEntry.addLine(200.0, JournalEntry.PostingType.Debit,"COGS Sales","description here 1");
         journalEntry.addLine(1.0, JournalEntry.PostingType.Debit,"Sales Tax Payable","description here 2");
-        journalEntry.addLine(100.5, JournalEntry.PostingType.Credit,"Chequing","Vendor payout 4", JournalEntry.EntityType.Vendor,"A&W");
-        journalEntry.addLine(100.5, JournalEntry.PostingType.Credit,"Wise Card Account","Vendor payout 3", JournalEntry.EntityType.Vendor,"Smiley's");
+        journalEntry.addLine(100.5, JournalEntry.PostingType.Credit,"Chequing","Vendor payout 4", Intuit.EntityType.Vendor,"A&W");
+        journalEntry.addLine(100.5, JournalEntry.PostingType.Credit,"Wise Card Account","Vendor payout 3", Intuit.EntityType.Vendor,"Smiley's");
 
         QBOResult qboResult = new QBOResult();
         qboResult = journalEntry.save(new File(System.getProperty("user.dir"), journalEntry.getDocNumber() + ".csv"));
@@ -314,6 +321,8 @@ public class QBOController {
                 queryReq.setHeader("Authorization","Bearer " + accessToken);
                 queryReq.setHeader("Content-Type","application/json");
 
+                logger.info("executeQuery: prior to calling CLIENT.execute - outside of try - queryReq : " + queryReq.toString());
+
                 try {
 
                     HttpResponse response = CLIENT.execute(queryReq);
@@ -332,8 +341,17 @@ public class QBOController {
                         //refresh tokens
                         logger.info("executeQuery: received 401 during call, refreshing tokens now");
                         BearerTokenResponse bearerTokenResponse = refreshTokenService.refresh();
+                        logger.info("executeQuery: after refresh tokens:" + bearerTokenResponse.toString());
+                        if(bearerTokenResponse==null){
+                            logger.info("executeQuery: failed refreshing token");
+                            qboResult.setFailed("QBO Process Failed","Failed refreshing token");
+                            return qboResult;
+                        }
+                        logger.info("executeQuery: before setQBOToken:" + bearerTokenResponse.getAccessToken());
                         Config.getInstance().setQBOToken(bearerTokenResponse.getAccessToken());
+                        logger.info("executeQuery: before setQBORefreshToken:" + bearerTokenResponse.getRefreshToken());
                         Config.getInstance().setQBORefreshToken(bearerTokenResponse.getRefreshToken());
+                        logger.info("executeQuery: after setQBORefreshToken");
 
                         //call company info again using new tokens
                         logger.info("executeQuery: calling using new tokens");
@@ -362,16 +380,22 @@ public class QBOController {
         return qboResult;
     }
 
-    public Map<String,NamedItem> getNamedItems(JournalEntry.EntityType entityType){
+    public Map<String,NamedItem> getNamedItems(Intuit.EntityType entityType){
         Map<String, NamedItem> namedItems = new TreeMap<>();
         namedItems = Map.of();
         String query = "";
-        if(entityType.equals(JournalEntry.EntityType.Vendor)){
+        if(entityType.equals(Intuit.EntityType.Vendor)){
             query = "select displayname,id from Vendor MAXRESULTS 1000";
-        }else if(entityType.equals(JournalEntry.EntityType.Employee)){
+        }else if(entityType.equals(Intuit.EntityType.Employee)){
             query = "select displayname,id from Employee MAXRESULTS 1000";
-        }else if(entityType.equals(JournalEntry.EntityType.Account)){
+        }else if(entityType.equals(Intuit.EntityType.Account)){
             query = "select FullyQualifiedName,id from Account MAXRESULTS 1000";
+        }else if(entityType.equals(Intuit.EntityType.Customer)){
+            query = "select displayname,id from Customer MAXRESULTS 1000";
+        }else if(entityType.equals(Intuit.EntityType.PaymentMethod)){
+            query = "select name,id from PaymentMethod MAXRESULTS 1000";
+        }else if(entityType.equals(Intuit.EntityType.Item)){
+            query = "select FullyQualifiedName,id from Item MAXRESULTS 1000";
         }else{
             logger.info("getNamedItems: invalid EntityType passed:" + entityType.name());
             return namedItems;
@@ -412,5 +436,193 @@ public class QBOController {
         return namedItems;
     }
 
+    public QBOResult getSalesReceipt(String salesReceiptNumber){
+        logger.info("QBOController: getSalesReceipt");
+        QBOResult qboResult = new QBOResult("QBO Process Result");
+        if(hasTokens()){
+            String realmId = Config.getInstance().getQBORealmId();
+            if (StringUtils.isEmpty(realmId)) {
+                qboResult.setFailed("QBO Process Failed","No QBO connection information found.  Please connect first from Utilities menu.");
+            }else{
+                String minorVersion = Config.getInstance().getQBOMinorVersion();
+                String salesReceiptEndpoint = String.format("%s/v3/company/%s/salesreceipt/%s?minorversion=%s", oAuth2Configuration.getAccountingAPIHost(), realmId, salesReceiptNumber, minorVersion);
+                logger.info("getSalesReceipt: salesReceiptEndpoint:" + salesReceiptEndpoint);
+                HttpGet salesReceiptReq = new HttpGet(salesReceiptEndpoint);
 
+                salesReceiptReq.setHeader("Accept", "application/json");
+                String accessToken = Config.getInstance().getQBOToken();
+                salesReceiptReq.setHeader("Authorization","Bearer " + accessToken);
+
+                try {
+
+                    HttpResponse response = CLIENT.execute(salesReceiptReq);
+
+                    logger.info("Response Code : "+ response.getStatusLine().getStatusCode());
+
+                    /*
+                     * Handle 401 status code -
+                     * If a 401 response is received, refresh tokens should be used to get a new access token,
+                     * and the API call should be tried again.
+                     */
+                    if (response.getStatusLine().getStatusCode() == 401) {
+                        StringBuffer result = httpHelper.getResult(response);
+                        logger.info("raw result for 401 salesReceipt= " + result);
+
+                        //refresh tokens
+                        logger.info("received 401 during salesReceipt call, refreshing tokens now");
+                        BearerTokenResponse bearerTokenResponse = refreshTokenService.refresh();
+                        if(bearerTokenResponse==null){
+                            logger.info("executeQuery: failed refreshing token");
+                            qboResult.setFailed("QBO Process Failed","Failed refreshing token");
+                            return qboResult;
+                        }
+                        Config.getInstance().setQBOToken(bearerTokenResponse.getAccessToken());
+                        Config.getInstance().setQBORefreshToken(bearerTokenResponse.getRefreshToken());
+
+                        //call salesReceipt again using new tokens
+                        logger.info("calling salesReceipt using new tokens");
+                        salesReceiptReq.setHeader("Authorization","Bearer " + bearerTokenResponse.getAccessToken());
+                        response = CLIENT.execute(salesReceiptReq);
+                    }
+
+                    if (response.getStatusLine().getStatusCode() != 200){
+                        logger.info("failed getting salesReceipt. Code:" + response.getStatusLine().getStatusCode());
+                        StringBuffer result = httpHelper.getResult(response);
+                        logger.info("raw result for salesReceipt fail:" + result);
+                        qboResult.setFailed("QBO Process Failed","Failed to get salesReceipt. Code:" + response.getStatusLine().getStatusCode());
+                    }else{
+                        StringBuffer result = httpHelper.getResult(response);
+                        logger.info("raw result for salesReceipt= " + result);
+
+
+                        ObjectMapper objectMapper = new ObjectMapper();
+                        SalesReceiptResponse salesReceiptResponse = null;
+                        try {
+                            salesReceiptResponse = objectMapper.readValue(result.toString(),SalesReceiptResponse.class);
+                        } catch (JsonProcessingException e) {
+                            logger.info("getSalesReceipt: failed creating SalesReceiptResponse from result:" + result );
+                            e.printStackTrace();
+                        }
+                        if(salesReceiptResponse==null){
+                            logger.info("getSalesReceipt: failed creating SalesReceiptResponse: null returned");
+                            qboResult.setFailed("QBO Process Failed","Failed to get Sales Receipt. Null returned");
+                        }else{
+                            logger.info("getSalesReceipt: success:" + salesReceiptResponse);
+                            qboResult.setResult(salesReceiptResponse.getSalesReceipt().toString());
+                            qboResult.setSuccess("QBO Journal Entry", "Sales Receipt: " + salesReceiptResponse.getSalesReceipt().getDocNumber() + " retrieved successfully.");
+                        }
+                    }
+
+                } catch (Exception ex) {
+                    logger.error("Exception while getting salesReceipt ", ex);
+                    qboResult.setFailed("QBO Process Failed","Exception while getting salesReceipt:" + ex);
+                } finally {
+                    salesReceiptReq.releaseConnection();
+                }
+            }
+        }
+        return qboResult;
+    }
+
+    public QBOResult createSalesReceipt(String jsonString) {
+        logger.info("QBOController: createSalesReceipt");
+        QBOResult qboResult = new QBOResult("QBO Process Result");
+        //TODO: create sales receipt
+        logger.info("createSalesReceipt: jsonString:" + jsonString);
+
+        if(hasTokens()){
+            String realmId = Config.getInstance().getQBORealmId();
+            if (StringUtils.isEmpty(realmId)) {
+                qboResult.setFailed("QBO Process Failed","No QBO connection information found.  Please connect first from Utilities menu.");
+            }else{
+                String minorVersion = Config.getInstance().getQBOMinorVersion();
+                String salesReceiptEndpoint = String.format("%s/v3/company/%s/salesreceipt?minorversion=%s", oAuth2Configuration.getAccountingAPIHost(), realmId, minorVersion);
+
+                HttpPost salesReceiptReq = new HttpPost(salesReceiptEndpoint);
+
+                salesReceiptReq.setHeader("Accept", "application/json");
+                String accessToken = Config.getInstance().getQBOToken();
+                salesReceiptReq.setHeader("Authorization","Bearer " + accessToken);
+                salesReceiptReq.setHeader("Content-Type","application/json");
+
+                StringEntity params = null;
+                try {
+                    //TODO:: need to generate a JE JSON - do I need to urlEncode this too ??
+                    logger.info("createSalesReceipt: setting params:" + jsonString);
+                    params = new StringEntity(jsonString);
+                    logger.info("createSalesReceipt: params:"+ params);
+                } catch (UnsupportedEncodingException e) {
+                    logger.info("createSalesReceipt: setting params FAILED");
+                    throw new RuntimeException(e);
+                }
+                logger.info("createSalesReceipt: setting entity");
+                salesReceiptReq.setEntity(params);
+
+                try {
+
+                    logger.info("createSalesReceipt: calling HttpResponse with:" + salesReceiptReq);
+                    HttpResponse response = CLIENT.execute(salesReceiptReq);
+
+                    logger.info("createSalesReceipt: Response Code : "+ response.getStatusLine().getStatusCode());
+
+                    /*
+                     * Handle 401 status code -
+                     * If a 401 response is received, refresh tokens should be used to get a new access token,
+                     * and the API call should be tried again.
+                     */
+                    if (response.getStatusLine().getStatusCode() == 401) {
+                        StringBuffer result = httpHelper.getResult(response);
+                        logger.info("createSalesReceipt: raw result for 401:" + result);
+
+                        //refresh tokens
+                        logger.info("createSalesReceipt: received 401 during call, refreshing tokens now");
+                        BearerTokenResponse bearerTokenResponse = refreshTokenService.refresh();
+                        if(bearerTokenResponse==null){
+                            logger.info("executeQuery: failed refreshing token");
+                            qboResult.setFailed("QBO Process Failed","Failed refreshing token");
+                            return qboResult;
+                        }
+                        Config.getInstance().setQBOToken(bearerTokenResponse.getAccessToken());
+                        Config.getInstance().setQBORefreshToken(bearerTokenResponse.getRefreshToken());
+
+                        //call company info again using new tokens
+                        logger.info("createSalesReceipt: calling using new tokens");
+                        salesReceiptReq.setHeader("Authorization","Bearer " + bearerTokenResponse.getAccessToken());
+                        response = CLIENT.execute(salesReceiptReq);
+                    }
+
+                    if (response.getStatusLine().getStatusCode() != 200){
+                        logger.info("createSalesReceipt: failed with code:" + response.getStatusLine().getStatusCode() + " message:" + response.getStatusLine().getReasonPhrase());
+                        qboResult.setFailed("QBO Process Failed","Failed to create Sales Receipt. Code:" + response.getStatusLine().getStatusCode());
+                    }else{
+                        StringBuffer result = httpHelper.getResult(response);
+                        logger.info("createSalesReceipt: raw result for createSalesReceipt= " + result);
+                        ObjectMapper objectMapper = new ObjectMapper();
+                        SalesReceiptResponse salesReceiptResponse = null;
+                        try {
+                            salesReceiptResponse = objectMapper.readValue(result.toString(),SalesReceiptResponse.class);
+                        } catch (JsonProcessingException e) {
+                            logger.info("createSalesReceipt: failed creating SalesReceiptResponse from result:" + result );
+                            e.printStackTrace();
+                        }
+                        if(salesReceiptResponse==null){
+                            logger.info("createSalesReceipt: failed creating SalesReceiptResponse: null returned");
+                            qboResult.setFailed("QBO Process Failed","Failed to create Sales Receipt. Null returned");
+                        }else{
+                            logger.info("createSalesReceipt: success:" + salesReceiptResponse);
+                            qboResult.setResult(salesReceiptResponse.getSalesReceipt().toString());
+                            qboResult.setSuccess("QBO Sales Receipt", "Sales Receipt: " + salesReceiptResponse.getSalesReceipt().getDocNumber() + " created and posted successfully.");
+                        }
+                    }
+
+                } catch (Exception ex) {
+                    logger.error("createSalesReceipt: Exception while creating sales receipt ", ex);
+                    qboResult.setFailed("QBO Process Failed","Exception while creating sales receipt:" + ex);
+                } finally {
+                    salesReceiptReq.releaseConnection();
+                }
+            }
+        }
+        return qboResult;
+    }
 }

@@ -5,6 +5,7 @@ import ca.admin.delivermore.collector.data.entity.Restaurant;
 import ca.admin.delivermore.collector.data.service.EmailService;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.data.entity.RestAdjustment;
+import ca.admin.delivermore.data.intuit.Intuit;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
 import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
@@ -45,7 +46,9 @@ import fr.opensagres.xdocreport.document.registry.XDocReportRegistry;
 import fr.opensagres.xdocreport.template.IContext;
 import fr.opensagres.xdocreport.template.TemplateEngineKind;
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata;
+import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.comparators.FixedOrderComparator;
+import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,7 +60,6 @@ import java.io.*;
 import java.nio.file.Files;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
@@ -67,8 +69,11 @@ import java.util.zip.ZipOutputStream;
 public class RestPayoutSummary implements TaskListRefreshNeededListener {
 
     private Logger log = LoggerFactory.getLogger(RestPayoutSummary.class);
-    Map<Long, RestPayoutPeriod> restPayoutPeriodMap = new TreeMap<>();
-    Map<Long, RestPayoutPeriod> partMonthRestPayoutPeriodMap = new TreeMap<>();
+    //Map<Long, RestPayoutPeriod> restPayoutPeriodMap = new TreeMap<>();
+    MultiValuedMap<Long, RestPayoutPeriod> restPayoutPeriodMap = new ArrayListValuedHashMap<>();
+
+    //Map<Long, RestPayoutPeriod> partMonthRestPayoutPeriodMap = new TreeMap<>();
+    MultiValuedMap<Long, RestPayoutPeriod> partMonthRestPayoutPeriodMap = new ArrayListValuedHashMap<>();
     List<RestPayoutPeriod> restPayoutPeriodList = new ArrayList<>();
     private List<Restaurant> restaurantList = new ArrayList<>();
     private LocalDate periodStart;
@@ -137,6 +142,9 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
     OAuth2Configuration oAuth2Configuration;
     private Boolean autoLoad = Boolean.TRUE;
     private RestSaleSummary restSaleSummary = new RestSaleSummary();
+    private RestSaleSummary saleSummaryPassThru = new RestSaleSummary();
+    private RestSaleSummary saleSummaryOther = new RestSaleSummary();
+
     private MissingGlobalDataDetails missingGlobalDataDetails = new MissingGlobalDataDetails();
     private MissingPOSDataDetails missingPOSDataDetails = new MissingPOSDataDetails();
 
@@ -223,6 +231,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
      */
     private void buildSummaryLayout() {
         summaryDetails = UIUtilities.getDetails();
+        summaryDetails.setSizeUndefined();
         mainLayout.add(summaryDetails);
         summaryDetailsSummary = buildSummaryDetailsSummary();
         summaryDetailsContent = UIUtilities.getVerticalLayout();
@@ -351,7 +360,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
     }
 
     public File getZippedFileforFileList(List<PayoutDocument> docList){
-        log.info("***Start of ZIP process***");
+        //log.info("***Start of ZIP process***");
         String zipFileName = "Start " + periodStart;
         File zippedFile = new File(appPath, zipFileName + ".zip");
         FileOutputStream fos = null;
@@ -379,7 +388,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        log.info("***END of ZIP process***");
+        //log.info("***END of ZIP process***");
 
         return zippedFile;
 
@@ -395,8 +404,8 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         }
         String prefix = "VendorPay_";
         String prefixMemo = "Vendor payout";
-        String prefixFile = "VendorPayoutJournalEntry-"
-;        JournalEntry journalEntry = new JournalEntry();
+        String prefixFile = "VendorPayoutJournalEntry-";
+        JournalEntry journalEntry = new JournalEntry();
         journalEntry.setDocNumber(prefix, journalEndDate);
         journalEntry.setTxnDate(journalEndDate);
         journalEntry.setPrivateNote(prefixMemo, periodStart,journalEndDate);
@@ -404,22 +413,31 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         log.info("createJournalEntries: journalNo:" + journalEntry.getDocNumber());
         if(partMonth){
             //build first part of period
+            log.info("createJournalEntries: split JE - part 1");
             journalEntry.addLine(getPartMonthCOGS(), JournalEntry.PostingType.Debit,"COGS Sales","");
             journalEntry.addLine(getPartMonthTaxes(), JournalEntry.PostingType.Debit,"Sales Tax Payable","");
             for (Restaurant restaurant : restaurantList) {
                 if(partMonthRestPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
                     String restName = restaurant.getName();
-                    RestPayoutPeriod payoutPeriod = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId());
-                    if(payoutPeriod.getOwingToVendor()>0){
-                        journalEntry.addLine(payoutPeriod.getOwingToVendor(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    Collection<RestPayoutPeriod> payoutPeriods = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    Double owing = 0.0;
+                    Double paidToVendor = 0.0;
+                    for (RestPayoutPeriod payoutPeriod: payoutPeriods) {
+                        owing+= payoutPeriod.getOwingToVendor();
+                        paidToVendor+= payoutPeriod.getPaidToVendor();
                     }
-                    if(payoutPeriod.getPaidToVendor()>0){
-                        journalEntry.addLine(payoutPeriod.getPaidToVendor(), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    if(owing>0){
+                        journalEntry.addLine(owing, JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Vendor,restName);
+                    }
+                    if(paidToVendor>0){
+                        journalEntry.addLine(paidToVendor, JournalEntry.PostingType.Credit,"Wise Card Account","", Intuit.EntityType.Vendor,restName);
                     }
                 }
             }
+            //log.info("createJournalEntries: split JE - part 1 detail:" + journalEntry.formattedString());
             journalEntries.add(journalEntry);
             //build second part of period
+            log.info("createJournalEntries: split JE - part 2");
             JournalEntry journalEntry2 = new JournalEntry();
             journalEntry2.setDocNumber(prefix, periodEnd);
             journalEntry2.setTxnDate(periodEnd);
@@ -430,44 +448,64 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
             for (Restaurant restaurant : restaurantList) {
                 String restName = restaurant.getName();
                 if(restPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
-                    RestPayoutPeriod payoutPeriod = restPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    //TODO: CHANGED to handle possible multiple periods
+                    Collection<RestPayoutPeriod> payoutPeriods = restPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    Double owing = 0.0;
+                    Double paidToVendor = 0.0;
+                    for (RestPayoutPeriod payoutPeriod: payoutPeriods) {
+                        owing+= payoutPeriod.getOwingToVendor();
+                        paidToVendor+= payoutPeriod.getPaidToVendor();
+                    }
                     Double partMonthOwingToVendor = 0.0;
                     Double partMonthPaidToVendor = 0.0;
                     if(partMonthRestPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
-                        partMonthOwingToVendor = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId()).getOwingToVendor();
-                        partMonthPaidToVendor = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId()).getPaidToVendor();
+                        Collection<RestPayoutPeriod> partMonthPayoutPeriods = partMonthRestPayoutPeriodMap.get(restaurant.getRestaurantId());
+                        for (RestPayoutPeriod payoutPeriod: partMonthPayoutPeriods) {
+                            partMonthOwingToVendor+= payoutPeriod.getOwingToVendor();
+                            partMonthPaidToVendor+= payoutPeriod.getPaidToVendor();
+                        }
                     }
-                    if(payoutPeriod.getOwingToVendor()-partMonthOwingToVendor>0){
-                        journalEntry2.addLine(Utility.getInstance().round(payoutPeriod.getOwingToVendor()-partMonthOwingToVendor,2), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    if(owing-partMonthOwingToVendor>0){
+                        journalEntry2.addLine(Utility.getInstance().round(owing-partMonthOwingToVendor,2), JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Vendor,restName);
                     }
-                    if(payoutPeriod.getPaidToVendor()-partMonthPaidToVendor>0){
-                        journalEntry2.addLine(Utility.getInstance().round(payoutPeriod.getPaidToVendor()-partMonthPaidToVendor,2), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    if(paidToVendor-partMonthPaidToVendor>0){
+                        journalEntry2.addLine(Utility.getInstance().round(paidToVendor-partMonthPaidToVendor,2), JournalEntry.PostingType.Credit,"Wise Card Account","", Intuit.EntityType.Vendor,restName);
                     }
                 }
             }
+            //log.info("createJournalEntries: split JE - part 2 detail:" + journalEntry2.formattedString());
             journalEntries.add(journalEntry2);
         }else{
             journalEntry.addLine(getCOGS(), JournalEntry.PostingType.Debit,"COGS Sales","");
             journalEntry.addLine(getPayoutTaxes(), JournalEntry.PostingType.Debit,"Sales Tax Payable","");
+            //log.info("createJournalEntries: COGS Sales:" + getCOGS() + " Tax:" + getPayoutTaxes());
             for (Restaurant restaurant : restaurantList) {
                 String restName = restaurant.getName();
                 if(restPayoutPeriodMap.containsKey(restaurant.getRestaurantId())){
-                    RestPayoutPeriod payoutPeriod = restPayoutPeriodMap.get(restaurant.getRestaurantId());
-                    if(payoutPeriod.getOwingToVendor()>0){
-                        journalEntry.addLine(payoutPeriod.getOwingToVendor(), JournalEntry.PostingType.Credit,"Chequing","", JournalEntry.EntityType.Vendor,restName);
+                    Collection<RestPayoutPeriod> payoutPeriods = restPayoutPeriodMap.get(restaurant.getRestaurantId());
+                    Double owing = 0.0;
+                    Double paidToVendor = 0.0;
+                    for (RestPayoutPeriod payoutPeriod: payoutPeriods) {
+                        owing+= payoutPeriod.getOwingToVendor();
+                        paidToVendor+= payoutPeriod.getPaidToVendor();
                     }
-                    if(payoutPeriod.getPaidToVendor()>0){
-                        journalEntry.addLine(payoutPeriod.getPaidToVendor(), JournalEntry.PostingType.Credit,"Wise Card Account","", JournalEntry.EntityType.Vendor,restName);
+                    if(owing>0){
+                        journalEntry.addLine(owing, JournalEntry.PostingType.Credit,"Chequing","", Intuit.EntityType.Vendor,restName);
+                        //log.info("createJournalEntries: restaurant:" + restName + " CREDIT owing:" + owing);
+                    }
+                    if(paidToVendor>0){
+                        journalEntry.addLine(paidToVendor, JournalEntry.PostingType.Credit,"Wise Card Account","", Intuit.EntityType.Vendor,restName);
+                        //log.info("createJournalEntries: restaurant:" + restName + " CREDIT paidToVendor:" + paidToVendor);
                     }
                 }
             }
+            //log.info("createJournalEntries: detail:" + journalEntry.formattedString());
             journalEntries.add(journalEntry);
         }
     }
 
     private List<PayoutDocument> getPayoutDocuments(){
         payoutDocumentList.clear();
-        //TODO: test that this still works after adding emptying this folder
         Utility.emptyDir(outputDir);
         try {
             Files.createDirectory(outputDir.toPath());
@@ -903,76 +941,135 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         }
         for (Restaurant restaurant: restaurantList) {
             DateRange range;
+            List<RestPayoutPeriod> allPeriods = new ArrayList<>();
             if(autoLoad){
                 range = findRestPeriodDateRange(restaurant.getStartDayOffset(), restaurant.getWeeksInPeriod(), restaurant.getRangeStartDate());
             }else{
                 range = new DateRange(periodStart, periodEnd);
             }
             if(range==null){
-                log.info("buildRestPayoutDetails:" + restaurant.getName() + " Not a valid payout period");
+                log.info("buildSummary:" + restaurant.getName() + " Not a valid payout period");
             }else{
-                RestPayoutPeriod restPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), range.getEndDate(), restaurant, this);
-                restPayoutPeriodMap.put(restaurant.getRestaurantId(), restPayoutPeriod);
-                log.info("buildRestPayoutDetails:" + restaurant.getName() + " start:" + range.getStartDate() + " end:" + range.getEndDate() + " PayoutSale:" + restPayoutPeriod.getPayoutSale() + " PayoutTaxes:" + restPayoutPeriod.getPayoutTaxes() + " PayoutTotalSale:" + restPayoutPeriod.getPayoutTotalSale() + " CommissionForPayout:" + restPayoutPeriod.getCommissionForPayout() + " CommissionPerDelivery:" + restPayoutPeriod.getCommissionPerDelivery() + " DeliveryFeeFromVendor:" + restPayoutPeriod.getDeliveryFeeFromVendor() + " owingToVendor:" + restPayoutPeriod.getOwingToVendor() + " commissionRate:" + restaurant.getCommissionRate() );
-                if(partMonth){
-                    RestPayoutPeriod partMonthRestPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), partMonthPayoutPeriodEnd, restaurant, this);
-                    partMonthRestPayoutPeriodMap.put(restaurant.getRestaurantId(), partMonthRestPayoutPeriod);
-                    this.partMonthTaxes = this.partMonthTaxes + partMonthRestPayoutPeriod.getPayoutTaxes();
-                    this.partMonthCOGS = this.partMonthCOGS + partMonthRestPayoutPeriod.getCOGS();
-                }
+                if(autoLoad){
+                    buildPeriod(restaurant,range);
+                }else{
+                    List<Restaurant> allRestSettings = restaurantRepository.findByRestaurantId(restaurant.getRestaurantId());
+                    //log.info("buildSummary:" + restaurant.getName() + " count of settings:" + allRestSettings.size());
 
-                this.payoutSale = this.payoutSale + restPayoutPeriod.getPayoutSale();
-                this.payoutTaxes = this.payoutTaxes + restPayoutPeriod.getPayoutTaxes();
-                this.payoutTotalSale = this.payoutTotalSale + restPayoutPeriod.getPayoutTotalSale();
-                this.payoutItemCount = this.payoutItemCount + restPayoutPeriod.getPayoutItemCount();
-                this.paidSale = this.paidSale + restPayoutPeriod.getPaidSale();
-                this.paidTotalSale = this.paidTotalSale + restPayoutPeriod.getPaidTotalSale();
-                this.paidItemCount = this.paidItemCount + restPayoutPeriod.getPaidItemCount();
-                this.directTotalSale = this.directTotalSale + restPayoutPeriod.getDirectTotalSale();
-                this.directItemCount = this.directItemCount + restPayoutPeriod.getDirectSalesCount();
-                this.phoneInTotalSale = this.phoneInTotalSale + restPayoutPeriod.getPhoneInTotalSale();
-                this.webOrderTotalSale = this.webOrderTotalSale + restPayoutPeriod.getWebOrderTotalSale();
-                this.webOrderOnlineTotalSale = this.webOrderOnlineTotalSale + restPayoutPeriod.getWebOrderOnlineTotalSale();
-                this.phoneInItemCount = this.phoneInItemCount + restPayoutPeriod.getPhoneInSalesCount();
-                this.webOrderItemCount = this.webOrderItemCount + restPayoutPeriod.getWebOrderSalesCount();
-                this.webOrderOnlineItemCount = this.webOrderOnlineItemCount + restPayoutPeriod.getWebOrderOnlineSalesCount();
-                this.sale = this.sale + restPayoutPeriod.getSale();
-                this.taxes = this.taxes + restPayoutPeriod.getTaxes();
-                this.totalSale = this.totalSale + restPayoutPeriod.getTotalSale();
-                this.prePaidTotalSale = this.prePaidTotalSale + restPayoutPeriod.getPrePaidTotalSale();
-                this.itemCount = this.itemCount + restPayoutPeriod.getItemCount();
-                this.adjustment = this.adjustment + restPayoutPeriod.getAdjustment();
-                this.restAdjustmentList.addAll(restPayoutPeriod.getRestAdjustmentList());
-                this.restPayoutItemList.addAll(restPayoutPeriod.getPayoutRestItems());
-                this.restPayoutItemList.addAll(restPayoutPeriod.getPaidRestItems());
-                this.restPayoutItemList.addAll(restPayoutPeriod.getCancelledRestItems());
-                this.commissionForPayout = this.commissionForPayout + restPayoutPeriod.getCommissionForPayout();
-                this.commissionPerDelivery = this.commissionPerDelivery + restPayoutPeriod.getCommissionPerDelivery();
-                this.deliveryFeeFromExternal = this.deliveryFeeFromExternal + restPayoutPeriod.getDeliveryFeeFromExternal();
-                this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutPeriod.getDeliveryFeeFromVendor();
-                this.owingToVendor = this.owingToVendor + restPayoutPeriod.getOwingToVendor();
-                this.COGS = this.COGS + restPayoutPeriod.getCOGS();
-
-                this.restSaleSummary.setSale(this.restSaleSummary.getSale() + restPayoutPeriod.getRestSaleSummary().getSale());
-                this.restSaleSummary.setTax(this.restSaleSummary.getTax() + restPayoutPeriod.getRestSaleSummary().getTax());
-                this.restSaleSummary.setDeliveryFee(this.restSaleSummary.getDeliveryFee() + restPayoutPeriod.getRestSaleSummary().getDeliveryFee());
-                this.restSaleSummary.setServiceFee(this.restSaleSummary.getServiceFee() + restPayoutPeriod.getRestSaleSummary().getServiceFee());
-                this.restSaleSummary.setTip(this.restSaleSummary.getTip() + restPayoutPeriod.getRestSaleSummary().getTip());
-                this.restSaleSummary.setCashSale(this.restSaleSummary.getCashSale() + restPayoutPeriod.getRestSaleSummary().getCashSale());
-                this.restSaleSummary.setCardSale(this.restSaleSummary.getCardSale() + restPayoutPeriod.getRestSaleSummary().getCardSale());
-                this.restSaleSummary.setOnlineSale(this.restSaleSummary.getOnlineSale() + restPayoutPeriod.getRestSaleSummary().getOnlineSale());
-                this.restSaleSummary.setCount(this.restSaleSummary.getCount() + restPayoutPeriod.getRestSaleSummary().getCount());
-
-                if(restPayoutPeriod.hasPayoutFromExternalVendor()){
-                    this.restPayoutFromExternalVendorList.add(restPayoutPeriod.getRestPayoutFromExternalVendor());
+                    if(allRestSettings.size()==1){  //if only 1 then just build it
+                        //log.info("  **: only one setting: pStart:" + range.getStartDate() + " pEnd:" + range.getEndDate());
+                        buildPeriod(restaurant,range);
+                    }else{
+                        for (Restaurant restSetting: allRestSettings) {
+                            //check if the setting is in effect
+                            if(restSetting.getDateExpired()!=null && restSetting.getDateExpired().isBefore(range.getStartDate())){
+                                //log.info("  **: expired BEFORE: pStart:" + range.getStartDate() + " pEnd:" + range.getEndDate() + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                                continue; //skip this one as it's expired
+                            }else if(restSetting.getDateEffective().isAfter(range.getEndDate())){
+                                //log.info("  **: effective AFTER: pStart:" + range.getStartDate() + " pEnd:" + range.getEndDate() + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                                continue; //skip as this one is not yet in effect
+                            }
+                            //this setting should be in effect - determine the start/end
+                            LocalDate thisStart;
+                            LocalDate thisEnd;
+                            if(restSetting.getDateEffective().isBefore(range.getStartDate())){
+                                thisStart = range.getStartDate();
+                            }else{
+                                thisStart = restSetting.getDateEffective();
+                            }
+                            if(restSetting.getDateExpired()==null || restSetting.getDateExpired().isAfter(range.getEndDate())){
+                                thisEnd = range.getEndDate();
+                            }else{
+                                thisEnd = restSetting.getDateExpired();
+                            }
+                            //log.info("  **: within period: pStart:" + range.getStartDate() + " pEnd:" + range.getEndDate() + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                            //log.info("  **: within period: thisStart:" + thisStart + " thisEnd:" + thisEnd);
+                            buildPeriod(restSetting,new DateRange(thisStart,thisEnd));
+                        }
+                    }
                 }
             }
         }
         //need to sort the list for use in grids and restaurant lists
+        //log.info("buildSummary: restPayoutPeriodMap: size:" + restPayoutPeriodMap.size());
         Collection<RestPayoutPeriod> restPayoutPeriodCol = restPayoutPeriodMap.values();
+        //log.info("buildSummary: restPayoutPeriodCol: size:" + restPayoutPeriodCol.size());
         restPayoutPeriodList = new ArrayList<>(restPayoutPeriodCol);
+        //log.info("buildSummary: restPayoutPeriodList: size:" + restPayoutPeriodList.size());
         Collections.sort(restPayoutPeriodList, Comparator.comparing(RestPayoutPeriod::getRestaurantName));
 
+    }
+
+    private void buildPeriod(Restaurant restaurant, DateRange range){
+        RestPayoutPeriod restPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), range.getEndDate(), restaurant, this);
+
+        restPayoutPeriodMap.put(restaurant.getRestaurantId(), restPayoutPeriod);
+        log.info("buildRestPayoutDetails:" + restaurant.getName() + " start:" + range.getStartDate() + " end:" + range.getEndDate() + " PayoutSale:" + restPayoutPeriod.getPayoutSale() + " PayoutTaxes:" + restPayoutPeriod.getPayoutTaxes() + " PayoutTotalSale:" + restPayoutPeriod.getPayoutTotalSale() + " CommissionForPayout:" + restPayoutPeriod.getCommissionForPayout() + " CommissionPerDelivery:" + restPayoutPeriod.getCommissionPerDelivery() + " DeliveryFeeFromVendor:" + restPayoutPeriod.getDeliveryFeeFromVendor() + " owingToVendor:" + restPayoutPeriod.getOwingToVendor() + " commissionRate:" + restaurant.getCommissionRate() );
+        if(partMonth){
+            RestPayoutPeriod partMonthRestPayoutPeriod = new RestPayoutPeriod(range.getStartDate(), partMonthPayoutPeriodEnd, restaurant, this);
+            partMonthRestPayoutPeriodMap.put(restaurant.getRestaurantId(), partMonthRestPayoutPeriod);
+            this.partMonthTaxes = this.partMonthTaxes + partMonthRestPayoutPeriod.getPayoutTaxes();
+            this.partMonthCOGS = this.partMonthCOGS + partMonthRestPayoutPeriod.getCOGS();
+        }
+
+        this.payoutSale = this.payoutSale + restPayoutPeriod.getPayoutSale();
+        this.payoutTaxes = this.payoutTaxes + restPayoutPeriod.getPayoutTaxes();
+        this.payoutTotalSale = this.payoutTotalSale + restPayoutPeriod.getPayoutTotalSale();
+        this.payoutItemCount = this.payoutItemCount + restPayoutPeriod.getPayoutItemCount();
+        this.paidSale = this.paidSale + restPayoutPeriod.getPaidSale();
+        this.paidTotalSale = this.paidTotalSale + restPayoutPeriod.getPaidTotalSale();
+        this.paidItemCount = this.paidItemCount + restPayoutPeriod.getPaidItemCount();
+        this.directTotalSale = this.directTotalSale + restPayoutPeriod.getDirectTotalSale();
+        this.directItemCount = this.directItemCount + restPayoutPeriod.getDirectSalesCount();
+        this.phoneInTotalSale = this.phoneInTotalSale + restPayoutPeriod.getPhoneInTotalSale();
+        this.webOrderTotalSale = this.webOrderTotalSale + restPayoutPeriod.getWebOrderTotalSale();
+        this.webOrderOnlineTotalSale = this.webOrderOnlineTotalSale + restPayoutPeriod.getWebOrderOnlineTotalSale();
+        this.phoneInItemCount = this.phoneInItemCount + restPayoutPeriod.getPhoneInSalesCount();
+        this.webOrderItemCount = this.webOrderItemCount + restPayoutPeriod.getWebOrderSalesCount();
+        this.webOrderOnlineItemCount = this.webOrderOnlineItemCount + restPayoutPeriod.getWebOrderOnlineSalesCount();
+        this.sale = this.sale + restPayoutPeriod.getSale();
+        this.taxes = this.taxes + restPayoutPeriod.getTaxes();
+        this.totalSale = this.totalSale + restPayoutPeriod.getTotalSale();
+        this.prePaidTotalSale = this.prePaidTotalSale + restPayoutPeriod.getPrePaidTotalSale();
+        this.itemCount = this.itemCount + restPayoutPeriod.getItemCount();
+        this.adjustment = this.adjustment + restPayoutPeriod.getAdjustment();
+        this.restAdjustmentList.addAll(restPayoutPeriod.getRestAdjustmentList());
+        this.restPayoutItemList.addAll(restPayoutPeriod.getPayoutRestItems());
+        this.restPayoutItemList.addAll(restPayoutPeriod.getPaidRestItems());
+        this.restPayoutItemList.addAll(restPayoutPeriod.getCancelledRestItems());
+        this.commissionForPayout = this.commissionForPayout + restPayoutPeriod.getCommissionForPayout();
+        this.commissionPerDelivery = this.commissionPerDelivery + restPayoutPeriod.getCommissionPerDelivery();
+        this.deliveryFeeFromExternal = this.deliveryFeeFromExternal + restPayoutPeriod.getDeliveryFeeFromExternal();
+        this.deliveryFeeFromVendor = this.deliveryFeeFromVendor + restPayoutPeriod.getDeliveryFeeFromVendor();
+        this.owingToVendor = this.owingToVendor + restPayoutPeriod.getOwingToVendor();
+        this.COGS = this.COGS + restPayoutPeriod.getCOGS();
+
+        updateSaleSummary(this.restSaleSummary,restPayoutPeriod.getRestSaleSummary());
+        updateSaleSummary(this.saleSummaryPassThru,restPayoutPeriod.getSaleSummaryPassThru());
+        updateSaleSummary(this.saleSummaryOther,restPayoutPeriod.getSaleSummaryOther());
+        
+        if(restPayoutPeriod.hasPayoutFromExternalVendor()){
+            this.restPayoutFromExternalVendorList.add(restPayoutPeriod.getRestPayoutFromExternalVendor());
+        }
+
+    }
+    
+    private void updateSaleSummary(RestSaleSummary summary, RestSaleSummary periodSummary){
+        summary.setSale(summary.getSale() + periodSummary.getSale());
+        summary.setTax(summary.getTax() + periodSummary.getTax());
+        summary.setDeliveryFee(summary.getDeliveryFee() + periodSummary.getDeliveryFee());
+        summary.setServiceFee(summary.getServiceFee() + periodSummary.getServiceFee());
+        summary.setTip(summary.getTip() + periodSummary.getTip());
+        summary.setCashSale(summary.getCashSale() + periodSummary.getCashSale());
+        summary.setCardSale(summary.getCardSale() + periodSummary.getCardSale());
+        summary.setOnlineSale(summary.getOnlineSale() + periodSummary.getOnlineSale());
+        summary.setCount(summary.getCount() + periodSummary.getCount());
+    }
+
+    private RestPayoutPeriod combinePeriods(RestPayoutPeriod period1, RestPayoutPeriod period2){
+        //add all the values from period2 to period 1
+        //for the start/end - use period1 start and period2 end
+        return period1;
     }
 
     private void updateAdjustment(){
@@ -1117,7 +1214,10 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
     }
 
     public RestPayoutPeriod getPeriod(Long restaurantID){
-        return restPayoutPeriodMap.get(restaurantID);
+        if(restPayoutPeriodMap.containsKey(restaurantID)){
+            return restPayoutPeriodMap.get(restaurantID).stream().findFirst().orElse(null);
+        }
+        return null;
     }
 
     public Double getDirectTotalSale() {
@@ -1154,6 +1254,12 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
 
     public RestSaleSummary getRestSaleSummary() {
         return restSaleSummary;
+    }
+    public RestSaleSummary getSaleSummaryPassThru() {
+        return saleSummaryPassThru;
+    }
+    public RestSaleSummary getSaleSummaryOther() {
+        return saleSummaryOther;
     }
 
     public Double getPartMonthCOGS() {

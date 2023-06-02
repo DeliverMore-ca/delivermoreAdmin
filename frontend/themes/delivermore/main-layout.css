@@ -48,6 +48,7 @@
 }
 
 .app-nav-footer {
+  border-bottom: 1px solid var(--lumo-contrast-10pct);
   align-items: center;
   display: flex;
   gap: var(--lumo-space-s);

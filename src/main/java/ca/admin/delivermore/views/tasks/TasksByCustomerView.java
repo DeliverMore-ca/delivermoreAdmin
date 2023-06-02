@@ -26,6 +26,7 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.security.RolesAllowed;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -34,7 +35,7 @@ import java.util.List;
 
 @PageTitle("Tasks by Customer")
 @Route(value = "customertasks", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed({"ADMIN","MANAGER"})
 public class TasksByCustomerView extends VerticalLayout {
     private TaskDetailRepository taskDetailRepository;
     private List<CustomerTasks> customerTasksList = new ArrayList<>();

@@ -9,8 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.security.RolesAllowed;
+
 @Route(value = "qboconnect", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed("ADMIN")
 public class QBOConnectView extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(QBOConnectView.class);

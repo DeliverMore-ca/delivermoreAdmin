@@ -110,7 +110,7 @@ public class GridExporter<T> implements Serializable {
 
     Object extractValueFromColumn(T item, Column<T> column) {
         Object value = null;
-        // first check if therer is a value provider for the current column
+        // first check if there is a value provider for the current column
         @SuppressWarnings("unchecked")
         ValueProvider<T,String> customVP = (ValueProvider<T, String>) ComponentUtil.getData(column, GridExporter.COLUMN_VALUE_PROVIDER_DATA);
         if (customVP!=null) {
@@ -160,7 +160,7 @@ public class GridExporter<T> implements Serializable {
             if (nullValueSupplier!=null) {
                 value = nullValueSupplier.get();
             } else {
-                throw new IllegalStateException("It's not possible to obtain a value for column, please set a value provider by calling setExportValue()");
+                throw new IllegalStateException("It's not possible to obtain a value for column, please set a value provider by calling setExportValue() column:" + column.getKey() + " item:" + item);
             }
         }
         return value;
@@ -296,9 +296,20 @@ public class GridExporter<T> implements Serializable {
     }
 
     public void createExportColumn(Column<T> column, boolean visible, String header){
+        //LOGGER.info("createExportColumn: header:" + header);
         column.setVisible(visible);
         column.setHeader(header);
         setExportColumn(column,true);
+    }
+
+    public void createExportColumn(Column<T> column, boolean visible, String header, Column<T> columnExportOnly){
+        //LOGGER.info("createExportColumn: header:" + header);
+        column.setVisible(visible);
+        column.setHeader(header);
+        setExportColumn(column,false);
+        columnExportOnly.setVisible(false);
+        columnExportOnly.setHeader(header);
+        setExportColumn(columnExportOnly,true);
     }
 
     public void setNullValueHandler(SerializableSupplier<String> nullValueSupplier) {

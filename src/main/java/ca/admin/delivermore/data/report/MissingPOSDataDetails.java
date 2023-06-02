@@ -1,11 +1,13 @@
 package ca.admin.delivermore.data.report;
 
+import ca.admin.delivermore.collector.data.entity.Restaurant;
 import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
 import ca.admin.delivermore.components.custom.ValidationMessage;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.views.UIUtilities;
+import com.vaadin.componentfactory.DateRange;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Focusable;
 import com.vaadin.flow.component.details.Details;
@@ -24,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class MissingPOSDataDetails {
@@ -44,14 +47,46 @@ public class MissingPOSDataDetails {
     public Details buildMissingPOSData(LocalDate periodStart, LocalDate periodEnd){
         Details missingGlobalDetails = UIUtilities.getDetails();
         missingGlobalDetails.addThemeVariants(DetailsVariant.FILLED);
-        missingGlobalDetails.setWidthFull();
-        List<Long> restIds = restaurantRepository.getEffectiveRestaurantIdsGlobalPos(periodStart);
-        if(restIds==null || restIds.size()==0){
+        missingGlobalDetails.setSizeUndefined();
+        //missingGlobalDetails.setWidthFull();
+        List<Restaurant> allRestSettings = restaurantRepository.getRestaurantsGlobalPos();
+        if(allRestSettings==null || allRestSettings.size()==0){
             missingGlobalDetails.setSummaryText("No Missing Global POS Paid To Vendor Data");
         }
         else{
-            missingPOSDataList = taskDetailRepository.getTaskEntityByDateMissingPOSInfo(periodStart.atStartOfDay(),periodEnd.atTime(23,59,59),restIds);
-            //missingPOSDataList = taskDetailRepository.getTaskEntityByDatePOSInfo(periodStart.atStartOfDay(),periodEnd.atTime(23,59,59),restIds);
+            missingPOSDataList.clear();
+            for (Restaurant restSetting: allRestSettings) {
+                //check if the setting is in effect
+                if(restSetting.getDateExpired()!=null && restSetting.getDateExpired().isBefore(periodStart)){
+                    //log.info("  **: expired BEFORE: pStart:" + periodStart + " pEnd:" + periodEnd + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                    continue; //skip this one as it's expired
+                }else if(restSetting.getDateEffective().isAfter(periodEnd)){
+                    //log.info("  **: effective AFTER: pStart:" + periodStart + " pEnd:" + periodEnd + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                    continue; //skip as this one is not yet in effect
+                }
+                //this setting should be in effect - determine the start/end
+                LocalDate thisStart;
+                LocalDate thisEnd;
+                if(restSetting.getDateEffective().isBefore(periodStart)){
+                    thisStart = periodStart;
+                }else{
+                    thisStart = restSetting.getDateEffective();
+                }
+                if(restSetting.getDateExpired()==null || restSetting.getDateExpired().isAfter(periodEnd)){
+                    thisEnd = periodEnd;
+                }else{
+                    thisEnd = restSetting.getDateExpired();
+                }
+                //log.info("  **: within period: pStart:" + periodStart + " pEnd:" + periodEnd + " sEffective:" + restSetting.getDateEffective() + " sExpiry:" + restSetting.getDateExpired());
+                //log.info("  **: within period: thisStart:" + thisStart + " thisEnd:" + thisEnd);
+                List<TaskEntity> tasks = taskDetailRepository.getTaskEntityByDateMissingPOSInfo(thisStart.atStartOfDay(),thisEnd.atTime(23,59,59),restSetting.getRestaurantId());
+                if(tasks!=null){
+                    missingPOSDataList.addAll(tasks);
+                }
+            }
+            //sort list by date
+            missingPOSDataList.sort(Comparator.comparing(TaskEntity::getCreationDate));
+
             if(missingPOSDataList.size()>0){
                 missingGlobalDetails.setSummaryText("Missing Global POS Paid To Vendor Data (" + missingPOSDataList.size() + " items)");
                 missingGlobalDetails.setOpened(true);

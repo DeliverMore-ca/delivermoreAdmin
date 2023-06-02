@@ -109,9 +109,6 @@ public class TaskEditDialog {
     private ComboBox<Restaurant> advFieldRestaurant = new ComboBox<>("Restaurant");
     private TextField advFieldOrderId = UIUtilities.getTextField("Order Id");
 
-    private String boxShadowStyle = "inset 0px 0px 3px 4px var(--lumo-success-color)";
-    //private String boxShadowStyle = "inset 0px 0px 3px 4px var(--lumo-error-color)";
-    private String boxShadowStyleRadius = "6px";
     private Boolean hasChangedValues = Boolean.FALSE;
     private TaskDetailRepository taskDetailRepository;
     private RestaurantRepository restaurantRepository;
@@ -384,14 +381,14 @@ public class TaskEditDialog {
         if(value==null && field.getValue()==null){
             field.getStyle().set("box-shadow","none");
         }else if(value==null && field.getValue()!=null){
-            field.getStyle().set("box-shadow",boxShadowStyle);
-            field.getStyle().set("border-radius",boxShadowStyleRadius);
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
             hasChangedValues = Boolean.TRUE;
         }else if(field.getValue().equals(value)){
             field.getStyle().set("box-shadow","none");
         }else{
-            field.getStyle().set("box-shadow",boxShadowStyle);
-            field.getStyle().set("border-radius",boxShadowStyleRadius);
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
             hasChangedValues = Boolean.TRUE;
         }
     }
@@ -400,8 +397,8 @@ public class TaskEditDialog {
         if(field.getValue().equals(value)){
             field.getStyle().set("box-shadow","none");
         }else{
-            field.getStyle().set("box-shadow",boxShadowStyle);
-            field.getStyle().set("border-radius",boxShadowStyleRadius);
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
             hasChangedValues = Boolean.TRUE;
         }
     }
@@ -413,8 +410,8 @@ public class TaskEditDialog {
             field.getStyle().set("box-shadow","none");
         }else{
             log.info("validateListbox: NOT matched");
-            field.getStyle().set("box-shadow",boxShadowStyle);
-            field.getStyle().set("border-radius",boxShadowStyleRadius);
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
             hasChangedValues = Boolean.TRUE;
         }
     }
@@ -631,7 +628,12 @@ public class TaskEditDialog {
         columnInfo.add(ids);
 
         if(fullHeader){
-            Span paymentInfo = new Span("Total:" + item.getTotalSale() + " Tip:" + item.getTip() + " - " + item.getPaymentMethod());
+            Span paymentInfo;
+            if(item.getPaymentMethod()==null){
+                paymentInfo = new Span("Total:" + item.getTotalSale() + " Tip:" + item.getTip());
+            }else{
+                paymentInfo = new Span("Total:" + item.getTotalSale() + " Tip:" + item.getTip() + " - " + item.getPaymentMethod());
+            }
             paymentInfo.getStyle()
                     .set("color", "var(--lumo-secondary-text-color)")
                     .set("font-size", "var(--lumo-font-size-s)");

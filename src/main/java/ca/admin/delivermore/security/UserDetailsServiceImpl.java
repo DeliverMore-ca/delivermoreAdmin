@@ -1,7 +1,8 @@
 package ca.admin.delivermore.security;
 
-import ca.admin.delivermore.data.entity.User;
-import ca.admin.delivermore.data.service.UserRepository;
+import ca.admin.delivermore.collector.data.service.DriversRepository;
+import ca.admin.delivermore.collector.data.tookan.Driver;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,25 +16,27 @@ import org.springframework.stereotype.Service;
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final DriversRepository driversRepository;
 
     @Autowired
-    public UserDetailsServiceImpl(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public UserDetailsServiceImpl(DriversRepository driversRepository) {
+        this.driversRepository = driversRepository;
     }
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username);
+        Driver user = driversRepository.findDriverByEmailAndLoginAllowed(username, Boolean.TRUE);
         if (user == null) {
             throw new UsernameNotFoundException("No user present with username: " + username);
         } else {
-            return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getHashedPassword(),
+            return new org.springframework.security.core.userdetails.User(user.getEmail(), user.getHashedPassword(),
                     getAuthorities(user));
         }
     }
 
-    private static List<GrantedAuthority> getAuthorities(User user) {
+
+
+    private static List<GrantedAuthority> getAuthorities(Driver user) {
         return user.getRoles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                 .collect(Collectors.toList());
 

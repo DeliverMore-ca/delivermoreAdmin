@@ -2,20 +2,30 @@ package ca.admin.delivermore.views;
 
 import ca.admin.delivermore.components.custom.ButtonNumberField;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.details.DetailsVariant;
-import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 
 public class UIUtilities {
+
+    public static final String boxShadowStyle = "inset 0px 0px 3px 4px var(--lumo-success-color)";
+    public static final String boxShadowStyleRadius = "6px";
+    public static final String iconColorNotHighlighted = "var(--lumo-contrast-30pct)";
+    public static final String iconColorNormal = "var(--lumo-contrast-50pct)";
+    public static final String iconColorHighlighted = "var(--lumo-success-color)";
 
     public static Details getDetails(){
         Details details = new Details();
@@ -26,6 +36,30 @@ public class UIUtilities {
 
     public static String getNumberFormatted(Double input){
         return String.format("%.2f",input);
+    }
+
+    public static IntegerField getPercentageField(String label, Boolean readOnly){
+        IntegerField integerField = new IntegerField();
+        Div suffixDiv = new Div();
+        suffixDiv.setText("%");
+        integerField.setSuffixComponent(suffixDiv);
+        if(!label.isEmpty()){
+            integerField.setLabel(label);
+        }
+        integerField.setReadOnly(readOnly);
+        integerField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+        return integerField;
+    }
+
+    public static IntegerField getIntegerField(String label, Boolean readOnly, Integer number){
+        IntegerField integerField = new IntegerField();
+        if(!label.isEmpty()){
+            integerField.setLabel(label);
+        }
+        integerField.setReadOnly(readOnly);
+        integerField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+        integerField.setValue(number);
+        return integerField;
     }
 
     public static NumberField getNumberField(String label, Double number){
@@ -161,7 +195,92 @@ public class UIUtilities {
         Notification.show(text, 3000, Notification.Position.BOTTOM_CENTER);
     }
 
+    public static void showNotificationError(String text) {
+        Notification notification = new Notification();
+        notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+        notification.setPosition(Notification.Position.BOTTOM_CENTER);
 
+        Div textDiv = new Div(new Text(text));
 
+        Button closeButton = new Button(new Icon("lumo", "cross"));
+        closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        closeButton.getElement().setAttribute("aria-label", "Close");
+        closeButton.addClickListener(event -> {
+            notification.close();
+        });
+
+        HorizontalLayout layout = new HorizontalLayout(textDiv, closeButton);
+        layout.setAlignItems(FlexComponent.Alignment.CENTER);
+
+        notification.add(layout);
+        notification.open();
+    }
+
+    public static VerticalLayout createStandardHeader(String header, String message){
+        VerticalLayout verticalLayout = getVerticalLayout();
+        verticalLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.CENTER);
+        verticalLayout.setDefaultHorizontalComponentAlignment(FlexComponent.Alignment.CENTER);
+        verticalLayout.getStyle().set("text-align", "center");
+
+        Image img = new Image("images/delivermorelogo.png", "DeliverMore Admin");
+        img.setWidth("400px");
+        verticalLayout.add(img);
+
+        verticalLayout.add(new H2(header));
+        verticalLayout.add(new Paragraph(message));
+
+        return verticalLayout;
+    }
+
+    public static class MenuEntry{
+
+        public enum MenuKeys {
+            ADDUSER,ADDMANAGER,ADDADMIN,REMOVEUSER,REMOVEMANAGER,REMOVEADMIN,PAYOUTENABLE,PAYOUTDISABLE,ALLOWLOGIN,DISABLELOGIN,PASSWORDRESET,PLACEHOLDER
+        }
+
+        private MenuKeys name;
+        private String displayName;
+        private Boolean placeHolder = Boolean.FALSE;
+
+        public MenuEntry() {
+            this.name = MenuKeys.PLACEHOLDER;
+            this.displayName = "Placeholder";
+            this.placeHolder = Boolean.TRUE;
+        }
+
+        public MenuEntry(MenuKeys name, String displayName) {
+            this.name = name;
+            this.displayName = displayName;
+        }
+
+        public MenuKeys getName() {
+            return name;
+        }
+
+        public void setName(MenuKeys name) {
+            this.name = name;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public Boolean getPlaceHolder() {
+            return placeHolder;
+        }
+
+        public void setPlaceHolder(Boolean placeHolder) {
+            this.placeHolder = placeHolder;
+        }
+
+        @Override
+        public String toString() {
+            return "MenuEntry{" +
+                    "name=" + name +
+                    ", displayName='" + displayName + '\'' +
+                    ", placeHolder=" + placeHolder +
+                    '}';
+        }
+    }
 
 }

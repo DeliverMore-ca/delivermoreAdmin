@@ -5,6 +5,7 @@ import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.collector.data.service.*;
 import ca.admin.delivermore.collector.data.tookan.Driver;
 import ca.admin.delivermore.collector.data.tookan.TaskDetail;
+import ca.admin.delivermore.components.custom.ButtonNumberField;
 import ca.admin.delivermore.data.entity.DriverAdjustment;
 import ca.admin.delivermore.data.entity.DriverAdjustmentTemplate;
 import ca.admin.delivermore.data.entity.DriverCardTip;
@@ -44,6 +45,7 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Main;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -74,6 +76,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Sort;
 import org.vaadin.olli.FileDownloadWrapper;
 
+import javax.annotation.security.RolesAllowed;
 import java.io.*;
 import java.nio.file.Files;
 import java.time.DayOfWeek;
@@ -86,7 +89,7 @@ import java.util.zip.ZipOutputStream;
 
 @PageTitle("Driver Payouts")
 @Route(value = "driverpayouts", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed("ADMIN")
 public class DriverPayoutView extends Main implements TaskListRefreshNeededListener {
     @Value("classpath:PayStatement_Template.docx")
     private Resource resourcePayStatementTemplate;
@@ -126,7 +129,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         refreshDriverPayoutDetails();
     }
 
-    enum DialogMode{
+    public enum DialogMode{
         NEW, EDIT, NEW_FIXED_DRIVER, DELETE
     }
     //DriverAdjustmentDialog fields
@@ -139,7 +142,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
 
     private DatePicker daDialodAdjustmentDate = new DatePicker("Adjustment date");
     private DatePicker daDialodAdjustmentEndDate = new DatePicker("Range end date");
-    private NumberField daDialodAdjustmentAmount = new NumberField("Adjustment amount");
+    private ButtonNumberField daDialodAdjustmentAmount = UIUtilities.getButtonNumberField("Adjustment amount",false,"$");
     private ComboBox<DriverAdjustmentTemplate> daDialodAdjustmentNote = new ComboBox<>("Adjustment note");
     private Button daDialogOkButton = new Button("OK");
     private Button daDialogCancelButton = new Button("Cancel");
@@ -297,7 +300,8 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         periodSummaryLayout.setAlignItems(FlexComponent.Alignment.END);
         Details summaryDetails = new Details(periodSummaryVerticalLayout);
         summaryDetails.addThemeVariants(DetailsVariant.FILLED);
-        summaryDetails.setWidthFull();
+        //summaryDetails.setWidthFull();
+        summaryDetails.setSizeUndefined();
         detailsLayout.add(summaryDetails);
         periodBinder.readBean(driverPayoutPeriod);
         VerticalLayout summaryDetailsContent = new VerticalLayout();
@@ -313,18 +317,21 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
 
         HorizontalLayout periodDocumentsToolbar = UIUtilities.getHorizontalLayout(true,true,false);
 
-        //TODO: add Post to QBO button here...
         Button postJournalEntries = new Button("Post to QBO");
         postJournalEntries.setDisableOnClick(true);
         postJournalEntries.setEnabled(false);
         postJournalEntries.addClickListener(e -> {
-            for (JournalEntry journalEntry:driverPayoutPeriod.getJournalEntries()) {
-                QBOResult qboResult = journalEntry.post();
-                log.info("buildDriverPayoutDetails: qboResult:" + qboResult.getMessage());
-                if(qboResult.getSuccess()){
-                    Notification.show("Journal Entry:" + journalEntry.getDocNumber() + " posted");
-                }else{
-                    Notification.show("Failed to post Journal Entry:" + journalEntry.getDocNumber());
+            if(driverPayoutPeriod.getJournalEntries().size()==0){
+                Notification.show("Failed: no journal entries created. You may need to connect to QBO");
+            }else{
+                for (JournalEntry journalEntry:driverPayoutPeriod.getJournalEntries()) {
+                    QBOResult qboResult = journalEntry.post();
+                    log.info("buildDriverPayoutDetails: qboResult:" + qboResult.getMessage());
+                    if(qboResult.getSuccess()){
+                        Notification.show("Journal Entry:" + journalEntry.getDocNumber() + " posted");
+                    }else{
+                        Notification.show("Failed to post Journal Entry:" + journalEntry.getDocNumber());
+                    }
                 }
             }
         });
@@ -421,7 +428,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         adjustmentsAddNew.addThemeVariants(ButtonVariant.LUMO_SMALL);
         adjustmentsAddNew.addClickListener(e -> {
             daDialogMode = DialogMode.NEW;
-            daDialogOpen(new DriverAdjustment());
+            daDialogOpen(new DriverAdjustment(), daDialogMode);
         });
         periodAdustmentsToolbar.add(adjustmentsAddNew);
         Details periodAdjustments = new Details("Adjustments");
@@ -442,7 +449,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
             //Button editButton = new Button("Edit");
             editIcon.addClickListener(e -> {
                 daDialogMode = DialogMode.EDIT;
-                daDialogOpen(item);
+                daDialogOpen(item, daDialogMode);
             });
             return editIcon;
         }).setWidth("150px").setFlexGrow(0);
@@ -451,7 +458,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
             deleteIcon.setColor("red");
             deleteIcon.addClickListener(e -> {
                 daDialogMode = DialogMode.DELETE;
-                daDialogOpen(item);
+                daDialogOpen(item, daDialogMode);
             });
             return deleteIcon;
         }).setWidth("150px").setFlexGrow(0);
@@ -520,6 +527,9 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
 
         //Drivers - week
         for (DriverPayoutWeek driverPayoutWeek: driverPayoutPeriod.getDriverPayoutWeekList()) {
+            //detailsLayout.add(driverPayoutWeek.getDetails(weekBinderMap,dayBinderMap,dayGridMap,weekGridMap,taskDetailRepository,driversRepository,taskEditDialog,daDialogMode));
+
+            //TODO: move all this to DriverPayoutWeek so it can be called from here AND from MyPay
             HorizontalLayout driverSummaryLayout = UIUtilities.getHorizontalLayout();
 
             Binder<DriverPayoutWeek> weekBinder = new Binder<>(DriverPayoutWeek.class);
@@ -548,7 +558,8 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
 
             Details driverDetails = new Details(driverSummaryLayout);
             driverDetails.addThemeVariants(DetailsVariant.FILLED);
-            driverDetails.setWidthFull();
+            //driverDetails.setWidthFull();
+            driverDetails.setSizeUndefined();
             detailsLayout.add(driverDetails);
             weekBinder.readBean(driverPayoutWeek);
 
@@ -632,7 +643,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
                 daDialogMode = DialogMode.NEW_FIXED_DRIVER;
                 DriverAdjustment newDriverAdjustment = new DriverAdjustment();
                 newDriverAdjustment.setDriver(driversRepository.findDriverByFleetId(driverPayoutWeek.getFleetId()));
-                daDialogOpen(newDriverAdjustment);
+                daDialogOpen(newDriverAdjustment, daDialogMode);
             });
             driverAdustmentsToolbar.add(driverAdjustmentsAddNew);
 
@@ -655,7 +666,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
                 //Button editButton = new Button("Edit");
                 editIcon.addClickListener(e -> {
                     daDialogMode = DialogMode.EDIT;
-                    daDialogOpen(item);
+                    daDialogOpen(item, daDialogMode);
                 });
                 return editIcon;
             }).setWidth("150px").setFlexGrow(0);
@@ -664,7 +675,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
                 deleteIcon.setColor("red");
                 deleteIcon.addClickListener(e -> {
                     daDialogMode = DialogMode.DELETE;
-                    daDialogOpen(item);
+                    daDialogOpen(item, daDialogMode);
                 });
                 return deleteIcon;
             }).setWidth("150px").setFlexGrow(0);
@@ -682,40 +693,6 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
 
         }
 
-    }
-
-    private void refreshTaskFromTookan(DriverPayoutEntity item) {
-        //after a confirmation, pull task from the RestAPI and refresh the item
-        ConfirmDialog confirmRefreshTask = new ConfirmDialog();
-        confirmRefreshTask.setHeader("Confirm Task Refresh");
-        confirmRefreshTask.setText("This will update task '" + item.getJobId() + "' directly from Tookan and overwrite any manual edits. \nAre you sure?");
-        confirmRefreshTask.setCancelable(true);
-        confirmRefreshTask.setCloseOnEsc(true);
-        confirmRefreshTask.setConfirmText("Refresh");
-        confirmRefreshTask.setConfirmButtonTheme("error primary");
-        confirmRefreshTask.addConfirmListener(e -> {
-            //call Rest API to refresh item
-            RestClientService restClientService = new RestClientService();
-            TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
-            RestaurantRepository restaurantRepository = Registry.getBean(RestaurantRepository.class);
-            OrderDetailRepository orderDetailRepository = Registry.getBean(OrderDetailRepository.class);
-            List<Long> itemsToRefresh = new ArrayList<>();
-            itemsToRefresh.add(item.getJobId());
-            List<TaskDetail> taskDetailList = restClientService.getTaskDetails(itemsToRefresh);
-            if(taskDetailList.size() > 0){
-                TaskEntity taskEntity = taskDetailList.get(0).getTaskEntity(restaurantRepository,orderDetailRepository,driversRepository);
-                if(taskEntity!=null){
-                    taskDetailRepository.save(taskEntity);
-                    refreshDriverPayoutDetails();
-                    Notification.show("Refresh completed");
-                }else{
-                    Notification.show("Refresh failed...see logs");
-                }
-            }else{
-                Notification.show("Refresh failed...see logs");
-            }
-        });
-        confirmRefreshTask.open();
     }
 
     private void saveCSV(File csvFile){
@@ -983,6 +960,11 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         daDialodAdjustmentNote.setAllowCustomValue(true);
         daDialodAdjustmentNote.setPlaceholder("Select or enter note");
 
+        daDialodAdjustmentAmount.setButtonIcon(new Icon("vaadin", "plus-minus"));
+        daDialodAdjustmentAmount.addClickListener(e -> {
+            daDialodAdjustmentAmount.setValue(daDialodAdjustmentAmount.getValue()*-1);
+        });
+
         daDialodAdjustmentNote.addValueChangeListener(item -> {
             if(item.getValue()!=null){
                 if(driverAdjustmentTemplateList.contains(item.getValue())){
@@ -1061,7 +1043,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         log.info("daDialogValidate: daDialodAdjustmentNote: value:" + daDialodAdjustmentNote.getValue());
     }
 
-    private void daDialogOpen(DriverAdjustment driverAdjustment){
+    public void daDialogOpen(DriverAdjustment driverAdjustment, DialogMode daDialogMode){
         selectedDriverAdjustment = driverAdjustment;
         daDialogRangeCreate.setValue(false);
         daDialogDriver.setValue(null);
@@ -1196,6 +1178,40 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         }
 
         daDialog.close();
+    }
+
+    private void refreshTaskFromTookan(DriverPayoutEntity item) {
+        //after a confirmation, pull task from the RestAPI and refresh the item
+        ConfirmDialog confirmRefreshTask = new ConfirmDialog();
+        confirmRefreshTask.setHeader("Confirm Task Refresh");
+        confirmRefreshTask.setText("This will update task '" + item.getJobId() + "' directly from Tookan and overwrite any manual edits. \nAre you sure?");
+        confirmRefreshTask.setCancelable(true);
+        confirmRefreshTask.setCloseOnEsc(true);
+        confirmRefreshTask.setConfirmText("Refresh");
+        confirmRefreshTask.setConfirmButtonTheme("error primary");
+        confirmRefreshTask.addConfirmListener(e -> {
+            //call Rest API to refresh item
+            RestClientService restClientService = new RestClientService();
+            TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
+            RestaurantRepository restaurantRepository = Registry.getBean(RestaurantRepository.class);
+            OrderDetailRepository orderDetailRepository = Registry.getBean(OrderDetailRepository.class);
+            List<Long> itemsToRefresh = new ArrayList<>();
+            itemsToRefresh.add(item.getJobId());
+            List<TaskDetail> taskDetailList = restClientService.getTaskDetails(itemsToRefresh);
+            if(taskDetailList.size() > 0){
+                TaskEntity taskEntity = taskDetailList.get(0).getTaskEntity(restaurantRepository,orderDetailRepository,driversRepository);
+                if(taskEntity!=null){
+                    taskDetailRepository.save(taskEntity);
+                    refreshDriverPayoutDetails();
+                    Notification.show("Refresh completed");
+                }else{
+                    Notification.show("Refresh failed...see logs");
+                }
+            }else{
+                Notification.show("Refresh failed...see logs");
+            }
+        });
+        confirmRefreshTask.open();
     }
 
     private void refreshDriverPayoutDetails(){

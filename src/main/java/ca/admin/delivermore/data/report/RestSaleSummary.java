@@ -2,6 +2,8 @@ package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.Utility;
 
+import java.time.LocalDateTime;
+
 public class RestSaleSummary {
 
     private Double sale = 0.0;
@@ -13,6 +15,8 @@ public class RestSaleSummary {
     private Double cardSale = 0.0;
     private Double onlineSale = 0.0;
     private Integer count = 0;
+    private LocalDateTime dateTime = null;
+    private Long jobId = null;
     public RestSaleSummary() {
     }
 
@@ -88,6 +92,22 @@ public class RestSaleSummary {
         this.count = count;
     }
 
+    public LocalDateTime getDateTime() {
+        return dateTime;
+    }
+
+    public void setDateTime(LocalDateTime dateTime) {
+        this.dateTime = dateTime;
+    }
+
+    public Long getJobId() {
+        return jobId;
+    }
+
+    public void setJobId(Long jobId) {
+        this.jobId = jobId;
+    }
+
     public Double getFundsTotal(){
         return Utility.getInstance().round(cashSale + cardSale + onlineSale,2);
     }
@@ -100,6 +120,21 @@ public class RestSaleSummary {
         return Utility.getInstance().round(getSalesTotal() - getFundsTotal(),2);
     }
 
-
-
+    @Override
+    public String toString() {
+        return "RestSaleSummary{" +
+                "sale=" + sale +
+                ", tax=" + tax +
+                ", deliveryFee=" + deliveryFee +
+                ", serviceFee=" + serviceFee +
+                ", tip=" + tip +
+                ", cashSale=" + cashSale +
+                ", cardSale=" + cardSale +
+                ", onlineSale=" + onlineSale +
+                ", count=" + count +
+                ", fundsTotal=" + getFundsTotal() +
+                ", salesTotal=" + getSalesTotal() +
+                ", salesMinusFundsTotal=" + getSalesMinusFundsTotal() +
+                '}';
+    }
 }

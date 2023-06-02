@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 public class QueryResponse {
 
     @JsonProperty("NamedItem")
-    @JsonAlias({"Vendor", "Employee", "Account"})
+    @JsonAlias({"Vendor", "Employee", "Account", "Customer", "Item", "PaymentMethod"})
     private List<NamedItem> NamedItem = null;
     @JsonProperty("startPosition")
     private Integer startPosition;

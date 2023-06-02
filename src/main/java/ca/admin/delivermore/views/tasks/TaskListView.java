@@ -32,6 +32,7 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.security.RolesAllowed;
 import java.text.Collator;
 import java.text.SimpleDateFormat;
 import java.time.DayOfWeek;
@@ -44,7 +45,7 @@ import java.util.stream.Stream;
 
 @PageTitle("Task List")
 @Route(value = "tasklist", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed({"ADMIN","MANAGER"})
 public class TaskListView extends Main implements TaskListRefreshNeededListener {
     private Logger log = LoggerFactory.getLogger(TaskListView.class);
     private TaskEditDialog taskEditDialog;
@@ -308,6 +309,7 @@ public class TaskListView extends Main implements TaskListRefreshNeededListener 
         exporter.createExportColumn(grid.addColumn(TaskEntity::getServiceFeePercent),false,"ServiceFeePercent");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getServiceFee),false,"ServiceFee");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getTotalSale),false,"TotalSale");
+        exporter.createExportColumn(grid.addColumn(TaskEntity::getPaidToVendor),false,"PaidToVendor");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getTip),false,"Tip");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getTipInNotesIssue),false,"TipIssue");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getNotes),false,"Notes");
@@ -320,15 +322,6 @@ public class TaskListView extends Main implements TaskListRefreshNeededListener 
 
         return gridLayout;
     }
-
-    /*
-    private void createExportColumn(Grid.Column column, boolean visible,String header, GridExporter exporter){
-        column.setVisible(visible);
-        column.setHeader(header);
-        exporter.setExportColumn(column,true);
-    }
-
-     */
 
     private void updateList(){
         //get list of tasks for date range - then apply filters
@@ -374,11 +367,6 @@ public class TaskListView extends Main implements TaskListRefreshNeededListener 
     }
 
     private void updateCounts(){
-        /*
-        ListDataProvider<TaskEntity> listDataProvider = (ListDataProvider<TaskEntity>) grid.getDataProvider();
-        Integer filtered = listDataProvider.size(new Query<>(listDataProvider.getFilter()));
-
-         */
         countLabel.setText("(" + grid.getListDataView().getItemCount() + "/" + entityList.size() + " tasks)");
         //log.info("***updateCounts: getListDataView size:" + grid.getListDataView().getItemCount() + " filtered int:" + filtered);
     }

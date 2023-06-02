@@ -18,13 +18,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.security.RolesAllowed;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 
 @PageTitle("Restaurant Payouts")
 @Route(value = "restaurantpayouts", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed("ADMIN")
 public class RestPayoutView extends Main {
 
     private VerticalLayout detailsLayout = new VerticalLayout();
@@ -117,7 +118,7 @@ public class RestPayoutView extends Main {
 
         if(validStartDate){
             restPayoutSummary = new RestPayoutSummary(defaultStartDate,defaultEndDate, Boolean.TRUE);
-            log.info("buildRestPayoutDetails: summary owing:" + restPayoutSummary.getOwingToVendor());
+            //log.info("buildRestPayoutDetails: summary owing:" + restPayoutSummary.getOwingToVendor());
             detailsLayout.add(restPayoutSummary.getMainLayout());
         }
 

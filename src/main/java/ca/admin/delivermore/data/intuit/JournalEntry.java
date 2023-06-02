@@ -51,10 +51,6 @@ public class JournalEntry {
         Debit, Credit
     }
 
-    public enum EntityType {
-        Vendor, Employee, Account
-    }
-
     private static final Logger log = LoggerFactory.getLogger(JournalEntry.class);
 
     @JsonProperty("Adjustment")
@@ -100,6 +96,9 @@ public class JournalEntry {
 
     @JsonIgnore
     private String journalDateFormat = "yyyy-MM-dd";
+
+    @JsonIgnore
+    private Boolean errorProcessing = Boolean.FALSE;
 
     public JournalEntry() {
     }
@@ -287,7 +286,7 @@ public class JournalEntry {
     }
 
     @JsonIgnore
-    public Boolean addLine(Double amount, PostingType postingType, String accountName, String description, EntityType entityType, String entityName){
+    public Boolean addLine(Double amount, PostingType postingType, String accountName, String description, Intuit.EntityType entityType, String entityName){
         if(line==null){
             line = new ArrayList<>();
         }
@@ -307,16 +306,18 @@ public class JournalEntry {
         journalEntryLineDetail.setPostingType(postingType.name());
         if(accountName==null){
             log.info("addLine failed: accountName was null");
+            this.errorProcessing = Boolean.TRUE;
             return false;
         }
         //get the accountNumber based on name
         if(accountMap==null){
             accountMap = new TreeMap<>();
             QBOController qboController = Registry.getBean(QBOController.class);
-            accountMap = qboController.getNamedItems(EntityType.Account);
+            accountMap = qboController.getNamedItems(Intuit.EntityType.Account);
         }
         if(!accountMap.containsKey(accountName)){
             log.info("addLine failed: accountNumber was null for accountName:" + accountName);
+            this.errorProcessing = Boolean.TRUE;
             return false;
         }
         String accountNumber = accountMap.get(accountName).getId();
@@ -325,45 +326,47 @@ public class JournalEntry {
         if(entityType!=null){
             if(entityName==null){
                 log.info("addLine failed: entityName was null for entityType:" + entityType);
+                this.errorProcessing = Boolean.TRUE;
                 return false;
             }
             Entity entity = new Entity();
-            if(entityType.equals(EntityType.Vendor)){
+            if(entityType.equals(Intuit.EntityType.Vendor)){
                 entity.setType(entityType.name());
                 //get the map of vendors only once
                 if(entityVendorMap==null){
                     entityVendorMap = new TreeMap<>();
                     QBOController qboController = Registry.getBean(QBOController.class);
-                    entityVendorMap = qboController.getNamedItems(EntityType.Vendor);
+                    entityVendorMap = qboController.getNamedItems(Intuit.EntityType.Vendor);
                 }
                 if(!entityVendorMap.containsKey(entityName)){
                     log.info("addLine failed: entityNumber was null for entiyName:" + entityName);
+                    this.errorProcessing = Boolean.TRUE;
                     return false;
                 }
                 String entityNumber = entityVendorMap.get(entityName).getId();
                 entity.setEntityRef(new EntityRef(entityName,entityNumber));
-            }else if(entityType.equals(EntityType.Employee)){
+            }else if(entityType.equals(Intuit.EntityType.Employee)){
                 entity.setType(entityType.name());
                 //get the map of employees only once
                 if(entityEmployeeMap==null){
                     entityEmployeeMap = new TreeMap<>();
                     QBOController qboController = Registry.getBean(QBOController.class);
-                    entityEmployeeMap = qboController.getNamedItems(EntityType.Employee);
+                    entityEmployeeMap = qboController.getNamedItems(Intuit.EntityType.Employee);
                 }
                 if(!entityEmployeeMap.containsKey(entityName)){
                     log.info("addLine failed: entityNumber was null for entiyName:" + entityName);
+                    this.errorProcessing = Boolean.TRUE;
                     return false;
                 }
                 String entityNumber = entityEmployeeMap.get(entityName).getId();
                 entity.setEntityRef(new EntityRef(entityName,entityNumber));
             }else{
                 log.info("addLine failed: entityType not valid:" + entityType);
+                this.errorProcessing = Boolean.TRUE;
                 return false;
             }
             journalEntryLineDetail.setEntity(entity);
         }
-
-
         return true;
     }
 
@@ -462,6 +465,27 @@ public class JournalEntry {
         }
         log.info("isValid: failed validation: debits:" + debitTotal + " credits:" + creditTotal);
         return false;
+    }
+
+    public Boolean getErrorProcessing() {
+        return errorProcessing;
+    }
+
+    public String formattedString() {
+        String headerString = "JournalNo,JournalDate,Memo,AccountName,Debits,Credits,Description,Name,Location,Class";
+        String out = "";
+        out+= this.docNumber + " Date:" + txnDate + " Memo:" + privateNote + "\n";
+        for (Line thisLine: line) {
+            out+= thisLine.getJournalEntryLineDetail().getAccountRef().getName() + " ";
+            out+= thisLine.getJournalEntryLineDetail().getPostingType().toString() + " ";
+            out+= thisLine.getAmount() + " ";
+            if(thisLine.getJournalEntryLineDetail().getEntity()!=null){
+                out+= thisLine.getJournalEntryLineDetail().getEntity().toString() + "\n";
+            }else{
+                out+= "\n";
+            }
+        }
+        return out;
     }
 
     @Override

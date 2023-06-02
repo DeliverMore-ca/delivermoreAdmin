@@ -1,19 +1,28 @@
 package ca.admin.delivermore.views.login;
 
 import ca.admin.delivermore.security.AuthenticatedUser;
+import ca.admin.delivermore.views.home.HomeView;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.login.LoginI18n;
 import com.vaadin.flow.component.login.LoginOverlay;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 @PageTitle("Login")
 @Route(value = "login")
 @AnonymousAllowed
 public class LoginView extends LoginOverlay implements BeforeEnterObserver {
 
+    private Logger log = LoggerFactory.getLogger(LoginView.class);
     private final AuthenticatedUser authenticatedUser;
 
     public LoginView(AuthenticatedUser authenticatedUser) {
@@ -23,13 +32,21 @@ public class LoginView extends LoginOverlay implements BeforeEnterObserver {
         LoginI18n i18n = LoginI18n.createDefault();
         i18n.setHeader(new LoginI18n.Header());
         i18n.getHeader().setTitle("DeliverMore");
-        i18n.getHeader().setDescription("Login using user/user or admin/admin");
-        i18n.setAdditionalInformation(null);
+        i18n.getHeader().setDescription("Login using your DeliverMore email address");
+        i18n.setAdditionalInformation("Contact support@delivermore.ca if you're experiencing issues logging into your account");
+        i18n.getForm().setUsername("Email");
+        i18n.getForm().setForgotPassword("Forgot/Reset password");
         setI18n(i18n);
 
-        setForgotPasswordButtonVisible(false);
+        setForgotPasswordButtonVisible(true);
+        addForgotPasswordListener(e -> {
+            log.info("LoginView: forgot/reset called");
+            getUI().ifPresent(ui -> ui.navigate(PasswordReset.class));
+        });
         setOpened(true);
     }
+
+
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {

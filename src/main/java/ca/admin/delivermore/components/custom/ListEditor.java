@@ -1,5 +1,6 @@
 package ca.admin.delivermore.components.custom;
 
+import ca.admin.delivermore.data.scheduler.SchedulerEventDialog;
 import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;
@@ -11,20 +12,25 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class ListEditor extends VerticalLayout {
     final static String LIST_BORDER = "1px var(--lumo-primary-color) solid";
-    final static String LIST_HEIGHT = "300px";
+    //TODO: should be able to set height of this component externally
+    final static String LIST_HEIGHT = "250px";
     final static String LIST_LEFT_SIZE = "75%";
     final static String LIST_RIGHT_SIZE = "25%";
-    private String value;
+    //private String value;
+    private TextField valueField = new TextField();
     private String separator = ",";
     private ListBox list = new ListBox<>();
     private TextField addField;
     private List<String> items = new ArrayList<>();
+    private Logger log = LoggerFactory.getLogger(ListEditor.class);
 
     public ListEditor() {
         createListEditor();
@@ -33,7 +39,14 @@ public class ListEditor extends VerticalLayout {
     private void buildList(){
         addField.setValue("");
         items.clear();
-        if (value!=null && !value.isEmpty()) {
+        String value = valueField.getValue();
+        //log.info("buildList: value:" + value);
+        if (value==null || value.isEmpty()) {
+            //log.info("buildList: skipping as no value");
+            list.clear();
+            list.setItems(items);
+        }else{
+            //log.info("buildList: processing:" + value);
             String parts[] = value.split(separator);
             if (parts!=null && parts.length>0) {
                 for (String p : parts)
@@ -88,6 +101,7 @@ public class ListEditor extends VerticalLayout {
         listArea.setWidthFull();
         listArea.setPadding(false);
         listArea.setSpacing(false);
+        listArea.setHeight(LIST_HEIGHT);
         VerticalLayout listLayout = new VerticalLayout();
         listLayout.setWidth(LIST_LEFT_SIZE);
         listLayout.setPadding(false);
@@ -109,7 +123,7 @@ public class ListEditor extends VerticalLayout {
                 int sel = list.getItemPosition(list.getValue());
                 items.remove(sel);
                 items.add(sel-1,list.getValue().toString());
-                value = getValueFromList();
+                valueField.setValue(getValueFromList());
                 list.setItems(items);
                 if(selectedItem!=null) list.setValue(selectedItem);
             }
@@ -121,7 +135,7 @@ public class ListEditor extends VerticalLayout {
                 Object selectedItem = list.getValue();
                 items.remove(sel);
                 items.add(sel+1,list.getValue().toString());
-                value = getValueFromList();
+                valueField.setValue(getValueFromList());
                 list.setItems(items);
                 if(selectedItem!=null) list.setValue(selectedItem);
             }
@@ -130,7 +144,7 @@ public class ListEditor extends VerticalLayout {
         remove.addClickListener(event -> {
             if(list.getValue()!=null){
                 items.remove(list.getItemPosition(list.getValue()));
-                value = getValueFromList();
+                valueField.setValue(getValueFromList());
                 list.setItems(items);
             }
         });
@@ -147,10 +161,10 @@ public class ListEditor extends VerticalLayout {
                 Object selectedItem = list.getValue();
                 if(list.getItemPosition(selectedItem)>=0){
                     items.add(list.getItemPosition(selectedItem)+1,addField.getValue());
-                    value = getValueFromList();
+                    valueField.setValue(getValueFromList());
                 }else{
                     items.add(addField.getValue());
-                    value = getValueFromList();
+                    valueField.setValue(getValueFromList());
                 }
                 list.setItems(items);
                 if(selectedItem!=null) list.setValue(selectedItem);
@@ -162,11 +176,15 @@ public class ListEditor extends VerticalLayout {
     }
 
     public String getValue() {
-        return value;
+        return valueField.getValue();
     }
 
     public void setValue(String value) {
-        this.value = value;
+        if(value==null){
+            this.valueField.clear();
+        }else{
+            this.valueField.setValue(value);
+        }
         buildList();
     }
 
@@ -178,4 +196,11 @@ public class ListEditor extends VerticalLayout {
         this.separator = separator;
     }
 
+    public ListBox getList() {
+        return list;
+    }
+
+    public TextField getValueField() {
+        return valueField;
+    }
 }

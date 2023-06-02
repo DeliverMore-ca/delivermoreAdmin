@@ -2,6 +2,7 @@ package ca.admin.delivermore.views.tasks;
 
 import ca.admin.delivermore.collector.data.service.RestClientService;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
+import ca.admin.delivermore.data.report.TasksForMonth;
 import ca.admin.delivermore.data.report.TasksForWeek;
 import ca.admin.delivermore.views.MainLayout;
 import com.vaadin.flow.component.button.Button;
@@ -19,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import javax.annotation.security.RolesAllowed;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -29,15 +31,19 @@ import java.util.List;
 
 @PageTitle("Tasks by Day and Week")
 @Route(value = "tasksbydayandweek", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed({"ADMIN","MANAGER"})
 public class TasksByDayAndWeekView extends VerticalLayout {
     private TaskDetailRepository taskDetailRepository;
     private RestClientService restClientService;
     private Grid<TasksForWeek> grid = new Grid<>();
+    private Grid<TasksForMonth> gridMonths = new Grid<>();
     private Label countLabel = new Label();
     private List<TasksForWeek> tasksForWeeks = new ArrayList<>();
     private Logger log = LoggerFactory.getLogger(TasksByDayAndWeekView.class);
     private TasksForWeek recordTasksForWeek = new TasksForWeek(Boolean.TRUE);
+
+    private List<TasksForMonth> tasksForMonths = new ArrayList<>();
+    private TasksForMonth recordTasksForMonth = new TasksForMonth(Boolean.TRUE);
 
     @Autowired
     public TasksByDayAndWeekView(TaskDetailRepository taskDetailRepository, RestClientService restClientService) {
@@ -45,9 +51,10 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         this.restClientService = restClientService;
         //addClassNames("tasksbydayandweek-view");
         configureGrid();
+        configureGridMonths();
         // layout configuration
         setSizeFull();
-        add(getToolbar(), grid);
+        add(getToolbar(), grid, gridMonths);
 
         updateList();
 
@@ -99,6 +106,18 @@ public class TasksByDayAndWeekView extends VerticalLayout {
 
     }
 
+    private void configureGridMonths(){
+        gridMonths.removeAllColumns();
+        gridMonths.addColumn(TasksForMonth::getMonthName)
+                .setWidth("150px")
+                .setHeader("Month");
+        gridMonths.addColumn(TasksForMonth::getMonthCount)
+                .setTextAlign(ColumnTextAlign.END)
+                .setWidth("150px")
+                .setHeader("Count");
+        gridMonths.setWidth("350px");
+    }
+
     private HorizontalLayout getToolbar() {
 
         //get lastWeek as the default for the range picker
@@ -130,13 +149,13 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         //TODO: set the max
         TasksForWeek tasksForWeek = new TasksForWeek();
         LocalDate firstDate = startDate;
-        for (LocalDate date = startDate; date.isBefore(endDate.plusDays(1)); date = date.plusDays(1)){
+        for (LocalDate date = startDate; date.isBefore(endDate.plusDays(1)); date = date.plusDays(1)) {
             log.info("updateList: processing date:" + date);
             tasksForWeek.setEndDate(date);
-            if(date.getDayOfWeek().equals(DayOfWeek.SUNDAY)){
+            if (date.getDayOfWeek().equals(DayOfWeek.SUNDAY)) {
                 log.info("updateList: processing date:" + date + " found SUNDAY");
                 //close out previous week if any
-                if(!date.equals(startDate)){
+                if (!date.equals(startDate)) {
                     log.info("updateList: processing date:" + date + " found SUNDAY that is NOT the start date");
                     tasksForWeek.setStartDate(firstDate);
                     recordTasksForWeek.addWeekIfHigher(tasksForWeek.getWeekCountLong());
@@ -146,22 +165,25 @@ public class TasksByDayAndWeekView extends VerticalLayout {
                 tasksForWeek = new TasksForWeek();
                 firstDate = date;
             }
-            log.info("updateList: processing date:" + date + " adding...");
-            Date dateForRequest = Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
-            Long dayCount = taskDetailRepository.findTaskCountByDate(dateForRequest);
-            tasksForWeek.add(date,dayCount);
-            recordTasksForWeek.addIfHigher(date,dayCount);
+            Long dayCount = 0L;
+            if (date.equals(endDate)) {
+                //Update today directly from tookan API
+                dayCount = Long.valueOf(restClientService.getTaskCount(LocalDate.now(), LocalDate.now()));
+                log.info("updateList: count for today " + endDate + " updated from Tookan API:" + dayCount);
+            } else {
+                log.info("updateList: processing date:" + date + " adding...");
+                Date dateForRequest = Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
+                dayCount = taskDetailRepository.findTaskCountByDate(dateForRequest);
+            }
+            tasksForWeek.add(date, dayCount);
+            recordTasksForWeek.addIfHigher(date, dayCount);
             taskCount = taskCount + dayCount;
         }
         //close out previous week if any
         tasksForWeek.setStartDate(firstDate);
         recordTasksForWeek.addWeekIfHigher(tasksForWeek.getWeekCountLong());
 
-        //Update today directly from tookan API
-        Long todayCount = Long.valueOf(restClientService.getTaskCount(LocalDate.now(), LocalDate.now()));
-        tasksForWeek.add(endDate,todayCount);
         tasksForWeeks.add(tasksForWeek);
-        log.info("**** count for today " + endDate + " updated from Tookan API:" + todayCount);
 
         tasksForWeeks.add(recordTasksForWeek);
         Collections.reverse(tasksForWeeks);
@@ -170,7 +192,28 @@ public class TasksByDayAndWeekView extends VerticalLayout {
 
         countLabel.setText("(" + taskCount + " tasks)");
 
+        //get all the month counts
+        tasksForMonths.clear();
+        for (LocalDate date = startDate.withDayOfMonth(1); date.isBefore(endDate); date = date.plusMonths(1)) {
+            Long monthCount = taskDetailRepository.findTaskCountByYearMonth(date.getYear(), date.getMonthValue());
+            TasksForMonth tasksForMonth = new TasksForMonth();
+            tasksForMonth.setStartDate(date);
+            tasksForMonth.setMonthCount(monthCount);
+            tasksForMonths.add(tasksForMonth);
+            if(monthCount> recordTasksForMonth.getMonthCount()){
+                recordTasksForMonth.setStartDate(date);
+                recordTasksForMonth.setMonthCount(monthCount);
+            }
+            //log.info("updateList: processing month:" + date + " count:" + monthCount);
+        }
+        //log.info("updateList: record month:" + recordTasksForMonth.getMonthName() + recordTasksForMonth.getMonthCount());
+        tasksForMonths.add(recordTasksForMonth);
+        Collections.reverse(tasksForMonths);
+        for (TasksForMonth taskMonth: tasksForMonths) {
+            log.info("updateList: month:" + taskMonth.getMonthName() + " count:" + taskMonth.getMonthCount());
+        }
+        gridMonths.setItems(tasksForMonths);
+        gridMonths.getDataProvider().refreshAll();
     }
-
 
 }

@@ -2,9 +2,11 @@ package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.entity.Restaurant;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
+import ca.admin.delivermore.components.custom.ButtonNumberField;
 import ca.admin.delivermore.data.entity.RestAdjustment;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.RestAdjustmentRepository;
+import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.ShortcutRegistration;
 import com.vaadin.flow.component.Shortcuts;
@@ -35,7 +37,8 @@ public class RestPayoutAdjustmentDialog {
     private DialogMode dialogMode = DialogMode.EDIT;
     private ComboBox<Restaurant> dialogRestaurant = new ComboBox<>("Restaurant");
     private DatePicker dialogAdjustmentDate = new DatePicker("Adjustment date");
-    private NumberField dialogAdjustmentAmount = new NumberField("Adjustment amount");
+
+    private ButtonNumberField dialogAdjustmentAmount = UIUtilities.getButtonNumberField("Adjustment amount",false,"$");
     private TextField dialogAdjustmentNote = new TextField("Adjustment note");
     private Button dialogOkButton = new Button("OK");
     private Button dialogCancelButton = new Button("Cancel");
@@ -248,7 +251,10 @@ public class RestPayoutAdjustmentDialog {
         });
 
         dialogAdjustmentAmount.setWidthFull();
-        //TODO:: format Number field with 2 decimals
+        dialogAdjustmentAmount.setButtonIcon(new Icon("vaadin", "plus-minus"));
+        dialogAdjustmentAmount.addClickListener(e -> {
+            dialogAdjustmentAmount.setValue(dialogAdjustmentAmount.getValue()*-1);
+        });
 
         VerticalLayout fieldLayout = new VerticalLayout(dialogRestaurant,dialogAdjustmentDate,dialogAdjustmentNote,dialogAdjustmentAmount);
         fieldLayout.setSpacing(false);

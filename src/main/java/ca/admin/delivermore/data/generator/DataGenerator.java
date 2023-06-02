@@ -3,9 +3,6 @@ package ca.admin.delivermore.data.generator;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.collector.data.service.OrderDetailRepository;
 import ca.admin.delivermore.collector.data.service.DriversRepository;
-import ca.admin.delivermore.collector.data.service.RestClientService;
-import ca.admin.delivermore.collector.data.Role;
-import ca.admin.delivermore.data.entity.User;
 import ca.admin.delivermore.data.service.*;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import org.slf4j.Logger;
@@ -14,23 +11,24 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Collections;
-import java.util.Set;
-
 @SpringComponent
 public class DataGenerator {
 
     @Bean
-    public CommandLineRunner loadData(PasswordEncoder passwordEncoder, UserRepository userRepository, RestaurantRepository restaurantRepository,
+    public CommandLineRunner loadData(PasswordEncoder passwordEncoder, RestaurantRepository restaurantRepository,
                                       OrdersRepository ordersRepository,
                                       OrderDetailRepository orderDetailRepository, DriversRepository driversRepository) {
         return args -> {
             Logger logger = LoggerFactory.getLogger(getClass());
+            //TODO: remove data generator if not needed
+
+            /*
             if (userRepository.count() != 0L) {
                 logger.info("Using existing database");
                 return;
             }
             int seed = 123;
+
 
             logger.info("Generating demo data");
 
@@ -52,6 +50,8 @@ public class DataGenerator {
             admin.setRoles(Set.of(Role.USER, Role.ADMIN));
             userRepository.save(admin);
 
+             */
+
             /*
             logger.info("... generating 100 Orders entities...");
             ExampleDataGenerator<Orders> ordersRepositoryGenerator = new ExampleDataGenerator<>(Orders.class,
@@ -69,7 +69,6 @@ public class DataGenerator {
             logger.info("Generated demo data");
              */
 
-            RestClientService restClientService = new RestClientService();
             /*
             //get all drivers
             List<Driver> drivers = restClientService.getAllDrivers();
@@ -82,7 +81,6 @@ public class DataGenerator {
 
             /*
             log.info("**************** RUNNING");
-            //TODO:get tasks from tookan since the last date - change later
             //List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.parse("2022-08-15") );
             List<TaskDetail> taskDetailList = restClientService.getAllTasks(LocalDate.parse("2022-08-14"),LocalDate.now() );
             List<TaskEntity> taskEntityList = new ArrayList<>();

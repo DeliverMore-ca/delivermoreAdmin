@@ -51,7 +51,6 @@ public class RestPayoutPeriod implements Serializable {
     private Logger log = LoggerFactory.getLogger(RestPayoutPeriod.class);
     private LocalDate periodStart;
     private LocalDate periodEnd;
-    private String periodRange;
     private Long restaurantId;
     private String restaurantName;
     private String restaurantEmail;
@@ -89,6 +88,8 @@ public class RestPayoutPeriod implements Serializable {
     private Double adjustment = 0.0;
     private Double owingToVendor = 0.0;
     private Restaurant restaurant;
+    private List<TaskEntity> taskEntityList = new ArrayList<>();
+    private List<RestSaleSummary> restSaleSummaryList = new ArrayList<>();
     private List<RestPayoutItem> paidRestItems = new ArrayList<>();
     private List<RestPayoutItem> payoutRestItems = new ArrayList<>();
     private List<RestPayoutItem> cancelledRestItems = new ArrayList<>();
@@ -112,12 +113,13 @@ public class RestPayoutPeriod implements Serializable {
     private Resource resourcePayStatementTemplate;
 
     private RestSaleSummary restSaleSummary = new RestSaleSummary();
+    private RestSaleSummary saleSummaryPassThru = new RestSaleSummary();
+    private RestSaleSummary saleSummaryOther = new RestSaleSummary();
 
     public RestPayoutPeriod(LocalDate periodStart, LocalDate periodEnd, Restaurant restaurant, RestPayoutSummary restPayoutSummary) {
         this.restPayoutSummary = restPayoutSummary;
         this.periodStart = periodStart;
         this.periodEnd = periodEnd;
-        this.periodRange = Utility.dateRangeFormatted(periodStart,periodEnd);
         this.restaurant = restaurant;
         this.resourcePayStatementTemplate = new ClassPathResource("Rest_PayStatement_Template.docx");
         restAdjustmentRepository = Registry.getBean(RestAdjustmentRepository.class);
@@ -139,6 +141,7 @@ public class RestPayoutPeriod implements Serializable {
     private void buildPayoutPeriodLayout() {
         mainLayout.removeAll();
         periodDetails = UIUtilities.getDetails();
+        periodDetails.setSizeUndefined();
         mainLayout.add(periodDetails);
         VerticalLayout periodDetailsSummary = UIUtilities.getVerticalLayout();
         HorizontalLayout periodDetailsSummaryHeader = UIUtilities.getHorizontalLayout();
@@ -320,7 +323,7 @@ public class RestPayoutPeriod implements Serializable {
                     .setSortable(true)
                     .setHeader("Date/Time");
             if(includeGlobalFields){
-                grid.addColumn(item -> item.getOrderId().toString())
+                grid.addColumn(item -> checkValueForNull(item.getOrderId()))
                         .setComparator(RestPayoutItem::getOrderId)
                         .setSortable(true)
                         .setHeader("Order");
@@ -358,6 +361,11 @@ public class RestPayoutPeriod implements Serializable {
         return gridLayout;
     }
 
+    private String checkValueForNull(Long value){
+        if(value==null) return "";
+        return value.toString();
+    }
+
     private void buildPayoutPeriod() {
         this.restaurantId = restaurant.getRestaurantId();
         this.restaurantName = restaurant.getName();
@@ -371,7 +379,7 @@ public class RestPayoutPeriod implements Serializable {
 
         this.deliveryFeeFromExternalVendorName = restaurant.getDeliveryFeeFromExternalVendorName();
         TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
-        List<TaskEntity> taskEntityList = taskDetailRepository.getTaskEntityByDateAndRestaurant(periodStart.atStartOfDay(), periodEnd.atTime(23,59,59), restaurant.getRestaurantId());
+        taskEntityList = taskDetailRepository.getTaskEntityByDateAndRestaurant(periodStart.atStartOfDay(), periodEnd.atTime(23,59,59), restaurant.getRestaurantId());
         this.itemCount = taskEntityList.size();
 
         for (TaskEntity taskEntity: taskEntityList) {
@@ -463,28 +471,19 @@ public class RestPayoutPeriod implements Serializable {
             }
 
             //Create a salesRecord for all orders
-            restSaleSummary.setCount(restSaleSummary.getCount() + 1);
-            //TODO: create a salesRecord - DO NOT INCLUDE WebOrderOnline as we do not collect for those sales
+            //create a salesRecord - DO NOT INCLUDE WebOrderOnline as we do not collect for those sales
             if(!restPayoutItem.getSaleType().equals(RestPayoutItem.SaleType.WEBORDERONLINE)){
-                restSaleSummary.setSale(restSaleSummary.getSale() + restPayoutItem.getSale());
-                restSaleSummary.setTax(restSaleSummary.getTax() + restPayoutItem.getTaxes());
-                restSaleSummary.setDeliveryFee(restSaleSummary.getDeliveryFee() + taskEntity.getDeliveryFee());
-                restSaleSummary.setServiceFee(restSaleSummary.getServiceFee() + taskEntity.getServiceFee());
-                restSaleSummary.setTip(restSaleSummary.getTip() + taskEntity.getTip());
-
-                //totalSale is calculated on Global in TaskEntity from Global data and for others is the totalWithFees
-                // - neither include the tip so add it in here
-                Double totalSale = 0.0;
-                totalSale = taskEntity.getTotalSale() + taskEntity.getTip();
-
-                if(taskEntity.getPaymentMethod().equalsIgnoreCase("CASH")){
-                    restSaleSummary.setCashSale(restSaleSummary.getCashSale() + totalSale);
-                }else if(taskEntity.getPaymentMethod().equalsIgnoreCase("CARD")){
-                    restSaleSummary.setCardSale(restSaleSummary.getCardSale() + totalSale);
+                restSaleSummaryList.add(createSaleSummary(restPayoutItem,taskEntity));
+                updateSaleSummary(restSaleSummary,restPayoutItem,taskEntity);
+                //create a salesRecords to separate sales where Tax is passed thru to vendor and other where tax is due
+                if(taskEntity.getCreatedBy().equals(43L) && !taskEntity.getPosPayment()){
+                    updateSaleSummary(saleSummaryPassThru,restPayoutItem,taskEntity);
                 }else{
-                    restSaleSummary.setOnlineSale(restSaleSummary.getOnlineSale() + totalSale);
+                    updateSaleSummary(saleSummaryOther,restPayoutItem,taskEntity);
                 }
-
+            }else{
+                restSaleSummary.setCount(restSaleSummary.getCount() + 1);
+                saleSummaryOther.setCount(saleSummaryOther.getCount() + 1);
             }
         }
         this.paidItemCount = paidRestItems.size();
@@ -504,7 +503,6 @@ public class RestPayoutPeriod implements Serializable {
             Double commissionWebOrder = this.webOrderTotalSale * this.commissionRatePhonein;
             Double commissionWebOrderOnline = this.webOrderOnlineTotalSale * this.commissionRatePhonein;
             Double commissionOther = commissionPhoneIn + commissionWebOrder + commissionWebOrderOnline;
-            //TODO: talk to Tara re DO WE INCLUDE WebOrderOnline commission here
             this.commissionForPayout = Utility.getInstance().round(commissionDirect + commissionOther,2);
         }
 
@@ -514,6 +512,54 @@ public class RestPayoutPeriod implements Serializable {
             restPayoutItem.setItemType(RestPayoutItem.ItemType.CANCELLED);
             cancelledRestItems.add(restPayoutItem);
         }
+    }
+
+    private void updateSaleSummary(RestSaleSummary summary, RestPayoutItem restPayoutItem, TaskEntity taskEntity){
+        summary.setCount(summary.getCount() + 1);
+        summary.setSale(summary.getSale() + restPayoutItem.getSale());
+        summary.setTax(summary.getTax() + restPayoutItem.getTaxes());
+        summary.setDeliveryFee(summary.getDeliveryFee() + taskEntity.getDeliveryFee());
+        summary.setServiceFee(summary.getServiceFee() + taskEntity.getServiceFee());
+        summary.setTip(summary.getTip() + taskEntity.getTip());
+
+        //totalSale is calculated on Global in TaskEntity from Global data and for others is the totalWithFees
+        // - neither include the tip so add it in here
+        Double totalSale = 0.0;
+        totalSale = taskEntity.getTotalSale() + taskEntity.getTip();
+
+        if(taskEntity.getPaymentMethod().equalsIgnoreCase("CASH")){
+            summary.setCashSale(summary.getCashSale() + totalSale);
+        }else if(taskEntity.getPaymentMethod().equalsIgnoreCase("CARD")){
+            summary.setCardSale(summary.getCardSale() + totalSale);
+        }else{
+            summary.setOnlineSale(summary.getOnlineSale() + totalSale);
+        }
+    }
+
+    private RestSaleSummary createSaleSummary(RestPayoutItem restPayoutItem, TaskEntity taskEntity){
+        RestSaleSummary summary = new RestSaleSummary();
+        summary.setCount(1);
+        summary.setDateTime(taskEntity.getCreationDate());
+        summary.setJobId(taskEntity.getJobId());
+        summary.setSale(restPayoutItem.getSale());
+        summary.setTax(restPayoutItem.getTaxes());
+        summary.setDeliveryFee(taskEntity.getDeliveryFee());
+        summary.setServiceFee(taskEntity.getServiceFee());
+        summary.setTip(taskEntity.getTip());
+
+        //totalSale is calculated on Global in TaskEntity from Global data and for others is the totalWithFees
+        // - neither include the tip so add it in here
+        Double totalSale = 0.0;
+        totalSale = taskEntity.getTotalSale() + taskEntity.getTip();
+
+        if(taskEntity.getPaymentMethod().equalsIgnoreCase("CASH")){
+            summary.setCashSale(totalSale);
+        }else if(taskEntity.getPaymentMethod().equalsIgnoreCase("CARD")){
+            summary.setCardSale(totalSale);
+        }else{
+            summary.setOnlineSale(totalSale);
+        }
+        return summary;
     }
 
     private void updateAdjustment(){
@@ -534,7 +580,7 @@ public class RestPayoutPeriod implements Serializable {
     }
 
     public String getPeriodRange() {
-        return periodRange;
+        return Utility.dateRangeFormatted(periodStart,periodEnd);
     }
 
     public Long getRestaurantId() {
@@ -789,6 +835,10 @@ public class RestPayoutPeriod implements Serializable {
         return Utility.getInstance().round(prePaidTotalSale,2);
     }
 
+    public List<RestSaleSummary> getRestSaleSummaryList() {
+        return restSaleSummaryList;
+    }
+
     public static HorizontalLayout getExternalVendorItem(RestPayoutFromExternalVendor restPayoutFromExternalVendor){
         HorizontalLayout externalVendorLayoutFields = UIUtilities.getHorizontalLayout();
         TextField externalVendorName = UIUtilities.getTextFieldRO("Vendor to invoice", restPayoutFromExternalVendor.getName(),"300px");
@@ -816,19 +866,23 @@ public class RestPayoutPeriod implements Serializable {
             }else if(restaurant.getPosPhonein()){
                 cogs = cogs + getPaidToVendor();
             }
-            log.info("getCOGS:" + getRestaurantName() + " getOwingToVendor: " + getOwingToVendor() + " getTaxes:" + getTaxes() + " PaidToVendor:" + getPaidToVendor() + " COGS:" + cogs);
-            /*
-            for (RestPayoutItem restPayoutItem: paidRestItems ) {
-                cogs = cogs + restPayoutItem.getPaidToVendor();
-                log.info("getCOGS: paidItems:" + restPayoutItem.getRestaurantName() + " sale:" + restPayoutItem.getSale() + " paidToVendor: " + restPayoutItem.getPaidToVendor() + " new COGS:" + cogs);
-            }
-             */
+            //log.info("getCOGS:" + getRestaurantName() + " getOwingToVendor: " + getOwingToVendor() + " getTaxes:" + getTaxes() + " PaidToVendor:" + getPaidToVendor() + " COGS:" + cogs);
         }
         return Utility.getInstance().round(cogs,2);
     }
 
     public RestSaleSummary getRestSaleSummary() {
         return restSaleSummary;
+    }
+    public RestSaleSummary getSaleSummaryPassThru() {
+        return saleSummaryPassThru;
+    }
+    public RestSaleSummary getSaleSummaryOther() {
+        return saleSummaryOther;
+    }
+
+    public List<TaskEntity> getTaskEntityList() {
+        return taskEntityList;
     }
 
     public void createStatement(){
@@ -920,6 +974,7 @@ public class RestPayoutPeriod implements Serializable {
     }
 
 
+
     @Override
     public String toString() {
         return "RestPayoutPeriod{" +
@@ -948,4 +1003,7 @@ public class RestPayoutPeriod implements Serializable {
                 ", payoutRestItems=" + payoutRestItems +
                 '}';
     }
+
+
+
 }

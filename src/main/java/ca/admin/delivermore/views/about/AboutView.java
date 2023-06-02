@@ -1,64 +1,96 @@
 package ca.admin.delivermore.views.about;
 
-import ca.admin.delivermore.collector.data.service.EmailService;
-import ca.admin.delivermore.data.intuit.JournalEntry;
-import ca.admin.delivermore.data.intuit.NamedItem;
+import ca.admin.delivermore.collector.data.service.DriversRepository;
+import ca.admin.delivermore.collector.data.tookan.Driver;
 import ca.admin.delivermore.data.service.intuit.controller.QBOController;
-import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
+import ca.admin.delivermore.data.service.webpush.WebPushService;
+import ca.admin.delivermore.data.service.webpush.WebPushToggle;
+import ca.admin.delivermore.security.AuthenticatedUser;
 import ca.admin.delivermore.views.MainLayout;
+import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.auth.AnonymousAllowed;
+import nl.martijndwars.webpush.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Map;
-import java.util.TreeMap;
+import javax.annotation.security.RolesAllowed;
+import java.util.Optional;
 
 @PageTitle("About")
 @Route(value = "about", layout = MainLayout.class)
-@AnonymousAllowed
+@RolesAllowed("USER")
 public class AboutView extends VerticalLayout {
 
     private Logger log = LoggerFactory.getLogger(AboutView.class);
-    @Autowired
-    private EmailService emailService;
+
+    private final WebPushService webPushService;
 
     @Autowired
     QBOController QBOController;
 
-    public AboutView() {
+    @Autowired
+    DriversRepository driversRepository;
+
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    @Autowired
+    Environment env;
+
+    Optional<Driver> signedInDriver;
+    private AuthenticatedUser authenticatedUser;
+
+
+    public AboutView(@Autowired Environment env, WebPushService webPushService,@Autowired AuthenticatedUser authenticatedUser) {
+        this.env = env;
+        this.webPushService = webPushService;
+        this.authenticatedUser = authenticatedUser;
+
+        signedInDriver = getSignedInDriver();
+        log.info("signedInDriver:" + signedInDriver);
+
+
         setSpacing(false);
 
-        Image img = new Image("images/delivermorelogo.png", "DeliverMore Admin");
-        img.setWidth("400px");
-        add(img);
+        String header = "DeliverMore Admin Application";
+        String version = env.getProperty("DM_APPLICATION_RELEASE_VERSION");
+        header+= " v" + version;
+        add(UIUtilities.createStandardHeader(header,"DeliverMore.ca is a locally owned and operated online ordering and delivery service"));
 
-        add(new H2("DeliverMore Admin Application"));
-        add(new Paragraph("DeliverMore.ca is a locally owned and operated online ordering and delivery service"));
-
-        Button emailButton = new Button("Email test from tara");
-        emailButton.addClickListener(e -> {
-            log.info("TEST sending email");
-            String body = "line 1\nline 2\nline 3";
-            emailService.sendMail("usjusjoken@gmail.com", "Test", body);
+        /*
+        Button qboButton = new Button("Test QBO - get sales receipt");
+        qboButton.addClickListener(e -> {
+            log.info("TEST quickbooks online integration - remove for prod");
+            QBOResult qboResult = QBOController.getSalesReceipt("41");
+            QBOController.showQBOMessageDialog(qboResult.getMessageHeader(),qboResult.getMessage());
         });
+        add(qboButton);
+
+        Button qboButton2 = new Button("Test QBO - get company info");
+        qboButton2.addClickListener(e -> {
+            log.info("TEST quickbooks online integration - remove for prod");
+            QBOResult qboResult = QBOController.getCompanyInfo();
+            QBOController.showQBOMessageDialog(qboResult.getMessageHeader(),qboResult.getMessage());
+        });
+        add(qboButton2);
+
+         */
+
+        /*
         Button qboButton = new Button("Test QBO - get company info");
         qboButton.addClickListener(e -> {
             log.info("TEST quickbooks online integration - remove for prod");
             QBOResult qboResult = QBOController.getCompanyInfo();
             QBOController.showQBOMessageDialog(qboResult.getMessageHeader(),qboResult.getMessage());
-        });
-        Button qboJEButton = new Button("Test QBO Journal Entry");
-        qboJEButton.addClickListener(e -> {
-            log.info("TEST quickbooks online integration - remove for prod");
-            QBOController.createJournalEntryTest();
         });
         Button qboListVendorButton = new Button("Test QBO Vendor List");
         qboListVendorButton.addClickListener(e -> {
@@ -86,7 +118,9 @@ public class AboutView extends VerticalLayout {
             QBOController.showQBOMessageDialog("QBO Query", "Retrieved list of: " + resultItems, true );
         });
 
-        add(emailButton,qboButton,qboJEButton,qboListVendorButton,qboListEmployeeButton);
+        add(qboButton,qboListVendorButton,qboListEmployeeButton);
+
+         */
 
         /*
         Button emailButton2 = new Button("Email preconfigured");
@@ -99,10 +133,52 @@ public class AboutView extends VerticalLayout {
 
          */
 
+        //TODO:: testing webpush
+
+        if(!signedInDriver.equals(Optional.empty()) && (signedInDriver.get().getName().equals("Test Admin") || signedInDriver.get().getName().equals("DeliverMore Test"))){
+            var toggle = new WebPushToggle(webPushService.getPublicKey());
+            var messageInput = new TextField("Message:");
+            var sendButton = new Button("Notify all users!");
+
+            add(
+                    new H1("Web Push Notification Demo"),
+                    toggle,
+                    new HorizontalLayout(messageInput, sendButton) {{setDefaultVerticalComponentAlignment(Alignment.BASELINE);}}
+            );
+
+            toggle.addSubscribeListener(e -> {
+                subscribe(e.getSubscription());
+            });
+            toggle.addUnsubscribeListener(e -> {
+                unsubscribe(e.getSubscription());
+            });
+
+            sendButton.addClickListener(e -> {
+                log.info("send message:" + messageInput.getValue());
+                webPushService.notifyAll("Message from user", messageInput.getValue());
+                log.info("send message:" + messageInput.getValue() + " AFTER");
+            });
+
+        }
+
         setSizeFull();
         setJustifyContentMode(JustifyContentMode.CENTER);
         setDefaultHorizontalComponentAlignment(Alignment.CENTER);
         getStyle().set("text-align", "center");
     }
+
+    public void subscribe(Subscription subscription) {
+        webPushService.subscribe(subscription);
+    }
+
+    public void unsubscribe(Subscription subscription) {
+        webPushService.unsubscribe(subscription);
+    }
+
+    private Optional<Driver> getSignedInDriver() {
+        log.info("getSignedInDriver:" + authenticatedUser.get());
+        return authenticatedUser.get();
+    }
+
 
 }

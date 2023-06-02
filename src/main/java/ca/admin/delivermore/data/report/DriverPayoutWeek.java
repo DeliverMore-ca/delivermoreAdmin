@@ -1,14 +1,25 @@
 package ca.admin.delivermore.data.report;
 
 import ca.admin.delivermore.collector.data.Utility;
-import ca.admin.delivermore.collector.data.service.DriversRepository;
-import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
+import ca.admin.delivermore.collector.data.service.*;
 import ca.admin.delivermore.collector.data.tookan.Driver;
 import ca.admin.delivermore.data.entity.DriverAdjustment;
 import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
 import ca.admin.delivermore.data.service.Registry;
+import ca.admin.delivermore.views.UIUtilities;
+import ca.admin.delivermore.views.drivers.DriverPayoutView;
+import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.component.details.DetailsVariant;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.GridVariant;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
 
 import javax.persistence.*;
 import java.io.File;
@@ -16,6 +27,7 @@ import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,6 +60,8 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
     private List<DriverAdjustment> driverAdjustmentList = new ArrayList<>();
 
     private Binder<DriverPayoutWeek> weekBinder = new Binder<>(DriverPayoutWeek.class);
+    @Transient
+    private TaskDetailRepository taskDetailRepository;
 
     public DriverPayoutWeek(Long fleetId, LocalDate payoutDate, LocalDate weekEndDate){
         //take a list of DriverPayoutDay for the same week and driver and summarize
@@ -55,7 +69,7 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
         this.payoutDate = payoutDate;
         this.weekEndDate = weekEndDate;
 
-        TaskDetailRepository taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
+        taskDetailRepository = Registry.getBean(TaskDetailRepository.class);
 
         Stream<LocalDate> dates = payoutDate.datesUntil(weekEndDate.plusDays(1));
         List<LocalDate> payoutDays = dates.collect(Collectors.toList());
@@ -306,6 +320,182 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
 
     public String getDriverCostFmt(){
         return String.format("%.2f",getDriverCost());
+    }
+
+    public Details getDetails(Boolean myPay){
+        HorizontalLayout driverSummaryLayout = UIUtilities.getHorizontalLayout();
+
+        Binder<DriverPayoutWeek> weekBinder = new Binder<>(DriverPayoutWeek.class);
+        //log.info("DriverPayoutWeek: getFleetId:" + driverPayoutWeek.getFleetId());
+        NumberField driverPayoutWeekTip = UIUtilities.getNumberField("Tip");
+        weekBinder.bind(driverPayoutWeekTip, DriverPayoutWeek::getTip, DriverPayoutWeek::setTip);
+        NumberField driverPayoutWeekIncome = UIUtilities.getNumberField("Income");
+        weekBinder.bind(driverPayoutWeekIncome, DriverPayoutWeek::getDriverIncome, DriverPayoutWeek::setDriverIncome);
+        NumberField driverPayoutWeekCash = UIUtilities.getNumberField("Cash");
+        weekBinder.bind(driverPayoutWeekCash, DriverPayoutWeek::getDriverCash, DriverPayoutWeek::setDriverCash);
+        NumberField driverPayoutWeekAdjustment = UIUtilities.getNumberField("Adjustment");
+        weekBinder.bind(driverPayoutWeekAdjustment, DriverPayoutWeek::getDriverAdjustment, DriverPayoutWeek::setDriverAdjustment);
+        NumberField driverPayoutWeekPayout = UIUtilities.getNumberField("Payout");
+        weekBinder.bind(driverPayoutWeekPayout, DriverPayoutWeek::getDriverPayout, DriverPayoutWeek::setDriverPayout);
+        driverSummaryLayout.add(
+                UIUtilities.getTextFieldRO("Driver", this.getFleetName().toString()),
+                UIUtilities.getTextFieldRO("Deliveries", this.getTaskCount().toString(), "100px"),
+                UIUtilities.getNumberField("Pay",this.getDriverPay()),
+                driverPayoutWeekTip,
+                driverPayoutWeekIncome,
+                driverPayoutWeekCash,
+                driverPayoutWeekAdjustment,
+                driverPayoutWeekPayout
+        );
+
+        Details driverDetails = new Details(driverSummaryLayout);
+        driverDetails.addThemeVariants(DetailsVariant.FILLED);
+        driverDetails.setSizeUndefined();
+        //driverDetails.setWidthFull();
+        if(myPay){
+            driverDetails.setOpened(true);
+        }
+        //detailsLayout.add(driverDetails);
+        weekBinder.readBean(this);
+
+        //Drivers - day
+        VerticalLayout driverDetailsContent = new VerticalLayout();
+        for (DriverPayoutDay driverPayoutDay: this.getDriverPayoutDayList()) {
+            Binder<DriverPayoutDay> dayBinder = new Binder<>(DriverPayoutDay.class);
+            HorizontalLayout driverDaySummaryLayout = UIUtilities.getHorizontalLayout();
+
+            NumberField driverPayoutDayTip = UIUtilities.getNumberField("Tip");
+            dayBinder.bind(driverPayoutDayTip, DriverPayoutDay::getTip, DriverPayoutDay::setTip);
+            NumberField driverPayoutDayIncome = UIUtilities.getNumberField("Income");
+            dayBinder.bind(driverPayoutDayIncome, DriverPayoutDay::getDriverIncome, DriverPayoutDay::setDriverIncome);
+            NumberField driverPayoutDayCash = UIUtilities.getNumberField("Cash");
+            dayBinder.bind(driverPayoutDayCash, DriverPayoutDay::getDriverCash, DriverPayoutDay::setDriverCash);
+            NumberField driverPayoutDayPayout = UIUtilities.getNumberField("Payout");
+            dayBinder.bind(driverPayoutDayPayout, DriverPayoutDay::getDriverPayout, DriverPayoutDay::setDriverPayout);
+            driverDaySummaryLayout.add(
+                    UIUtilities.getTextFieldRO("Date", driverPayoutDay.getPayoutDate().toString()),
+                    UIUtilities.getTextFieldRO("Deliveries", driverPayoutDay.getTaskCount().toString(), "100px"),
+                    UIUtilities.getNumberField("Pay",driverPayoutDay.getDriverPay()),
+                    driverPayoutDayTip,
+                    driverPayoutDayIncome,
+                    driverPayoutDayCash,
+                    driverPayoutDayPayout
+            );
+            Details driverDayDetails = new Details(driverDaySummaryLayout);
+            driverDayDetails.addThemeVariants(DetailsVariant.FILLED);
+            driverDayDetails.setWidthFull();
+            driverDetailsContent.add(driverDayDetails);
+            dayBinder.readBean(driverPayoutDay);
+
+            //add a grid to the content of the Day
+            Grid<DriverPayoutEntity> driverDayGrid = new Grid<>();
+            driverDayGrid.setItems(taskDetailRepository.getDriverPayoutByFleetId(driverPayoutDay.getFleetId(), driverPayoutDay.getPayoutDate().atStartOfDay(),driverPayoutDay.getPayoutDate().atTime(23,59,59) ));
+            driverDayGrid.setWidthFull();
+            driverDayGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+            driverDayGrid.addThemeVariants(GridVariant.LUMO_COMPACT);
+            /*
+            driverDayGrid.addComponentColumn(item -> {
+                Icon editIcon = new Icon("lumo", "edit");
+                editIcon.addClickListener(e -> {
+                    taskEditDialog.setDialogMode(TaskEditDialog.DialogMode.EDIT);
+                    taskEditDialog.dialogOpen(item.getJobId());
+                });
+                return editIcon;
+            }).setWidth("150px").setFlexGrow(0).setFrozen(true);
+
+             */
+            /*
+            driverDayGrid.addComponentColumn(item -> {
+                Icon refreshIcon = new Icon("lumo", "reload");
+                refreshIcon.addClickListener(e -> {
+                    refreshTaskFromTookan(item);
+                });
+                return refreshIcon;
+            }).setWidth("150px").setFlexGrow(0).setFrozen(true);
+
+             */
+            driverDayGrid.addColumn(new LocalDateTimeRenderer<>(DriverPayoutEntity::getCreationDateTime,"MM-dd HH:mm"))
+                    .setHeader("Date");
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDriverPay())).setHeader("Pay").setTextAlign(ColumnTextAlign.END);
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getTip())).setHeader("Tip").setTextAlign(ColumnTextAlign.END);
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDriverIncome())).setHeader("Income").setTextAlign(ColumnTextAlign.END);
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDriverCash())).setHeader("Cash").setTextAlign(ColumnTextAlign.END);
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getDriverPayout())).setHeader("Payout").setTextAlign(ColumnTextAlign.END);
+            driverDayGrid.addColumn(DriverPayoutEntity::getRestaurantName).setHeader("Restaurant");
+            driverDayGrid.addColumn(DriverPayoutEntity::getCustomerUsername).setHeader("Customer");
+            driverDayGrid.addColumn(DriverPayoutEntity::getPaymentMethod).setHeader("Method");
+            driverDayGrid.addColumn(item -> UIUtilities.getNumberFormatted(item.getTotalSale())).setHeader("Total Sale").setTextAlign(ColumnTextAlign.END);
+            //driverDayGrid.addColumn(DriverPayoutEntity::getTipInNotesIssue).setHeader("Note Issue");
+            driverDayGrid.addColumn(DriverPayoutEntity::getNotes).setHeader("Notes");
+            driverDayGrid.addColumn(DriverPayoutEntity::getJobId).setHeader("Task Id");
+            driverDayGrid.getColumns().forEach(col -> col.setAutoWidth(true));
+
+            driverDayDetails.setContent(driverDayGrid);
+            //driverDayGrid.asSingleSelect().addValueChangeListener(e -> editDriverPayoutEntity(e.getValue()));
+
+        }
+        //add driver adjustments if any
+        /*
+        HorizontalLayout driverAdustmentsToolbar = UIUtilities.getHorizontalLayout(true,true,false);
+        Icon addNewIcon = new Icon("lumo", "plus");
+        addNewIcon.setColor("green");
+        Button driverAdjustmentsAddNew = new Button("Add", addNewIcon);
+        driverAdjustmentsAddNew.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        driverAdjustmentsAddNew.addClickListener(e -> {
+            DriverAdjustment newDriverAdjustment = new DriverAdjustment();
+            newDriverAdjustment.setDriver(driversRepository.findDriverByFleetId(this.getFleetId()));
+            daDialogOpen(newDriverAdjustment,DriverPayoutView.DialogMode.NEW_FIXED_DRIVER);
+        });
+        driverAdustmentsToolbar.add(driverAdjustmentsAddNew);
+
+         */
+
+        Details driverWeekAdjustments = new Details("Adjustments");
+        driverWeekAdjustments.setOpened(true);
+        driverWeekAdjustments.addThemeVariants(DetailsVariant.FILLED);
+        driverWeekAdjustments.setWidthFull();
+        driverDetailsContent.add(driverWeekAdjustments);
+        Grid<DriverAdjustment> driverAdjustmentGrid = new Grid<>();
+        driverAdjustmentGrid.setWidthFull();
+        driverAdjustmentGrid.setAllRowsVisible(true);
+        driverAdjustmentGrid.addThemeVariants(GridVariant.LUMO_ROW_STRIPES);
+        driverAdjustmentGrid.addThemeVariants(GridVariant.LUMO_COMPACT);
+        VerticalLayout driverAdjustmentsContent = UIUtilities.getVerticalLayout();
+        driverAdjustmentsContent.add(driverAdjustmentGrid);
+        driverWeekAdjustments.addContent(driverAdjustmentsContent);
+        /*
+        driverAdjustmentGrid.addComponentColumn(item -> {
+            Icon editIcon = new Icon("lumo", "edit");
+            //Button editButton = new Button("Edit");
+            editIcon.addClickListener(e -> {
+                daDialogOpen(item,DriverPayoutView.DialogMode.EDIT);
+            });
+            return editIcon;
+        }).setWidth("150px").setFlexGrow(0);
+        driverAdjustmentGrid.addComponentColumn(item -> {
+            Icon deleteIcon = new Icon("lumo", "cross");
+            deleteIcon.setColor("red");
+            deleteIcon.addClickListener(e -> {
+                daDialogOpen(item,DriverPayoutView.DialogMode.DELETE);
+            });
+            return deleteIcon;
+        }).setWidth("150px").setFlexGrow(0);
+
+         */
+        driverAdjustmentGrid.addColumn(DriverAdjustment::getAdjustmentDate).setHeader("Date");
+        driverAdjustmentGrid.addColumn(DriverAdjustment::getAdjustmentNote).setHeader("Note");
+        driverAdjustmentGrid.addColumn(item -> item.getAdjustmentAmountFmt()).setHeader("Amount").setTextAlign(ColumnTextAlign.END);
+        driverAdjustmentGrid.getColumns().forEach(col -> col.setAutoWidth(true));
+
+        if(this.getDriverAdjustmentList().size()>0){
+            //Add the adjustments in a Grid to the summary content
+            driverAdjustmentGrid.setItems(this.getDriverAdjustmentList());
+        }
+
+        driverDetails.setContent(driverDetailsContent);
+
+        return driverDetails;
+
     }
 
 

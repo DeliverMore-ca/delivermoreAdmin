@@ -11,6 +11,8 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 
 @PageTitle("Home")
 @Route(value = "home", layout = MainLayout.class)
@@ -18,8 +20,11 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 @AnonymousAllowed
 public class HomeView extends HorizontalLayout {
 
-    public HomeView() {
-        Text welcomeMessage = new Text("Welcome to DeliverMore Admin application");
+    public HomeView(@Autowired Environment env) {
+        String version = env.getProperty("DM_APPLICATION_RELEASE_VERSION");
+        String header = "Welcome to DeliverMore Admin application (v" + version + ")";
+
+        Text welcomeMessage = new Text(header);
 
         setMargin(true);
         //setVerticalComponentAlignment(Alignment.END, welcomeMessage);

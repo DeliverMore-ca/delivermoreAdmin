@@ -51,8 +51,9 @@ public class RefreshTokenService {
 
             logger.info("Response Code : "+ response.getStatusLine().getStatusCode());
             if (response.getStatusLine().getStatusCode() != 200) {
-                logger.info("failed getting companyInfo");
-                throw new Exception();
+                logger.info("failed refreshing token");
+                return null;
+                //throw new Exception();
             }
 
             StringBuffer result = httpHelper.getResult(response);
@@ -64,7 +65,8 @@ public class RefreshTokenService {
         }
         catch (Exception ex) {
             logger.error("Exception while calling refreshToken ", ex);
-            throw new Exception(ex);
+            return null;
+            //throw new Exception(ex);
         }
 
     }
