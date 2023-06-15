@@ -13,6 +13,7 @@ import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.intuit.JournalEntry;
 import ca.admin.delivermore.data.report.*;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
+import ca.admin.delivermore.data.service.DriverAdjustmentTemplateRepository;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.TaskDetailService;
 import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
@@ -54,6 +55,7 @@ import com.vaadin.flow.component.textfield.*;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
@@ -116,6 +118,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
     private VerticalLayout detailsLayout = new VerticalLayout();
     private TaskDetailService service;
     private DriverAdjustmentRepository driverAdjustmentRepository;
+    private DriverAdjustmentTemplateRepository driverAdjustmentTemplateRepository;
 
     private DriversRepository driversRepository;
 
@@ -163,18 +166,14 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
     private MissingGlobalDataDetails missingGlobalDataDetails = new MissingGlobalDataDetails();
     private TaskEditDialog taskEditDialog = new TaskEditDialog();
 
-    public DriverPayoutView(@Autowired TaskDetailService service, @Autowired DriverAdjustmentRepository driverAdjustmentRepository, @Autowired DriversRepository driversRepository, @Autowired OAuth2Configuration oAuth2Configuration) {
+    public DriverPayoutView(@Autowired TaskDetailService service, @Autowired DriverAdjustmentRepository driverAdjustmentRepository, @Autowired DriversRepository driversRepository, @Autowired OAuth2Configuration oAuth2Configuration, @Autowired DriverAdjustmentTemplateRepository driverAdjustmentTemplateRepository) {
         this.service = service;
         this.driverAdjustmentRepository = driverAdjustmentRepository;
+        this.driverAdjustmentTemplateRepository = driverAdjustmentTemplateRepository;
         this.driversRepository = driversRepository;
         this.oAuth2Configuration = oAuth2Configuration;
-        //getUI().get().getPushConfiguration().setPushMode(PushMode.AUTOMATIC);
 
-        //TODO: move the following into a managed table in the database
-        driverAdjustmentTemplateList.add(new DriverAdjustmentTemplate("Dispatch", 50.00));
-        driverAdjustmentTemplateList.add(new DriverAdjustmentTemplate("Admin", 0.00));
-        driverAdjustmentTemplateList.add(new DriverAdjustmentTemplate("Excess cash from previous period", 0.00));
-        driverAdjustmentTemplateList.add(new DriverAdjustmentTemplate("Excess cash moved to next period", 0.00));
+        driverAdjustmentTemplateList = driverAdjustmentTemplateRepository.findAll();
 
         configureDatePicker();
         startDate = rangeDatePicker.getValue().getStartDate();
@@ -961,6 +960,12 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
         daDialodAdjustmentNote.setPlaceholder("Select or enter note");
 
         daDialodAdjustmentAmount.setButtonIcon(new Icon("vaadin", "plus-minus"));
+        /*
+        daDialodAdjustmentAmount.getNumberField().addValueChangeListener(item -> {
+            daDialogValidate();
+        });
+
+         */
         daDialodAdjustmentAmount.addClickListener(e -> {
             daDialodAdjustmentAmount.setValue(daDialodAdjustmentAmount.getValue()*-1);
         });
@@ -1122,7 +1127,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
                         if(daDialodAdjustmentAmount.getValue()==null){
                             driverAdjustment.setAdjustmentAmount(0.0);
                         }else{
-                            driverAdjustment.setAdjustmentAmount(daDialodAdjustmentAmount.getValue());
+                            driverAdjustment.setAdjustmentAmount(daDialodAdjustmentAmount.getNumberField().getValue());
                         }
                         driverAdjustment.setAdjustmentDate(adjustmentDay);
                         driverAdjustment.setAdjustmentNote(daDialodAdjustmentNote.getValue().getTemplateName());
@@ -1135,7 +1140,7 @@ public class DriverPayoutView extends Main implements TaskListRefreshNeededListe
                 if(daDialodAdjustmentAmount.getValue()==null){
                     selectedDriverAdjustment.setAdjustmentAmount(0.0);
                 }else{
-                    selectedDriverAdjustment.setAdjustmentAmount(daDialodAdjustmentAmount.getValue());
+                    selectedDriverAdjustment.setAdjustmentAmount(daDialodAdjustmentAmount.getNumberField().getValue());
                 }
                 selectedDriverAdjustment.setAdjustmentDate(daDialodAdjustmentDate.getValue());
                 selectedDriverAdjustment.setAdjustmentNote(daDialodAdjustmentNote.getValue().getTemplateName());

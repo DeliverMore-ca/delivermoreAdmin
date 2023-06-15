@@ -7,9 +7,14 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 
 public class TasksForWeek implements Comparable {
+    public static enum TasksForWeekType{
+        COUNT, RECORD, AVERAGE, SUM
+    }
+
+    private TasksForWeekType weekType = TasksForWeekType.COUNT;
+
     private LocalDate startDate;
     private LocalDate endDate;
-    private Boolean maxRecord = Boolean.FALSE;
     private String dowCountSunday = "";
     private String dowCountMonday = "";
     private String dowCountTuesday = "";
@@ -19,12 +24,20 @@ public class TasksForWeek implements Comparable {
     private String dowCountSaturday = "";
     private Long weekCount = 0L;
 
+    private Long counterSunday = 0L;
+    private Long counterMonday = 0L;
+    private Long counterTuesday = 0L;
+    private Long counterWednesday = 0L;
+    private Long counterThursday = 0L;
+    private Long counterFriday = 0L;
+    private Long counterSaturday = 0L;
+
     public TasksForWeek() {
     }
 
-    public TasksForWeek(Boolean maxRecord) {
-        this.maxRecord = maxRecord;
-        if(maxRecord){
+    public TasksForWeek(TasksForWeekType weekType) {
+        this.weekType = weekType;
+        if(!this.weekType.equals(TasksForWeekType.COUNT)){
             dowCountSunday = "0";
             dowCountMonday = "0";
             dowCountTuesday = "0";
@@ -81,6 +94,49 @@ public class TasksForWeek implements Comparable {
             //do nothing
         }
     }
+
+    public void addToSum(LocalDate date, Long count){
+        weekCount = weekCount + count;
+        if(date.getDayOfWeek().equals(DayOfWeek.SUNDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountSunday = Long.toString(Long.valueOf(dowCountSunday) + count);
+                counterSunday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.MONDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountMonday = Long.toString(Long.valueOf(dowCountMonday) + count);
+                counterMonday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.TUESDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountTuesday = Long.toString(Long.valueOf(dowCountTuesday) + count);
+                counterTuesday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.WEDNESDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountWednesday = Long.toString(Long.valueOf(dowCountWednesday) + count);
+                counterWednesday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.THURSDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountThursday = Long.toString(Long.valueOf(dowCountThursday) + count);
+                counterThursday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.FRIDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountFriday = Long.toString(Long.valueOf(dowCountFriday) + count);
+                counterFriday++;
+            }
+        }else if(date.getDayOfWeek().equals(DayOfWeek.SATURDAY)){
+            if(!date.equals(LocalDate.now())){
+                dowCountSaturday = Long.toString(Long.valueOf(dowCountSaturday) + count);
+                counterSaturday++;
+            }
+        }else{
+            //do nothing
+        }
+    }
+
 
     public void addWeekIfHigher(Long count){
         if(count>weekCount) weekCount = count;
@@ -162,18 +218,78 @@ public class TasksForWeek implements Comparable {
         return weekCount.toString();
     }
 
+    public void setWeekCount(Long weekCount) {
+        this.weekCount = weekCount;
+    }
+
     public Long getWeekCountLong() {
         return weekCount;
     }
 
+    public Long getDOWCountLongSunday(){
+        return getLongFromDOW(dowCountSunday);
+    }
+    public Long getDOWCountLongMonday(){
+        return getLongFromDOW(dowCountMonday);
+    }
+    public Long getDOWCountLongTuesday(){
+        return getLongFromDOW(dowCountTuesday);
+    }
+    public Long getDOWCountLongWednesday(){
+        return getLongFromDOW(dowCountWednesday);
+    }
+    public Long getDOWCountLongThursday(){
+        return getLongFromDOW(dowCountThursday);
+    }
+    public Long getDOWCountLongFriday(){
+        return getLongFromDOW(dowCountFriday);
+    }
+    public Long getDOWCountLongSaturday(){
+        return getLongFromDOW(dowCountSaturday);
+    }
+
+    private Long getLongFromDOW(String dowCount){
+        if(dowCount==null || dowCount.isEmpty()) return 0L;
+        return Long.valueOf(dowCount);
+    }
+
+    public Long getCounterSunday() {
+        return counterSunday;
+    }
+
+    public Long getCounterMonday() {
+        return counterMonday;
+    }
+
+    public Long getCounterTuesday() {
+        return counterTuesday;
+    }
+
+    public Long getCounterWednesday() {
+        return counterWednesday;
+    }
+
+    public Long getCounterThursday() {
+        return counterThursday;
+    }
+
+    public Long getCounterFriday() {
+        return counterFriday;
+    }
+
+    public Long getCounterSaturday() {
+        return counterSaturday;
+    }
+
     public String getWeekName(){
-        if(maxRecord){
+        if(this.weekType.equals(TasksForWeekType.RECORD)){
             return "Records";
+        }else if(this.weekType.equals(TasksForWeekType.AVERAGE)){
+            return "Averages";
+        }else if(this.weekType.equals(TasksForWeekType.SUM)){
+            return "Sums";
         }
         return Utility.dateRangeFormatted(startDate,endDate);
     }
 
-    public void setMaxRecord(Boolean maxRecord) {
-        this.maxRecord = maxRecord;
-    }
 }

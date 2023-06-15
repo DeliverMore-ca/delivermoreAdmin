@@ -129,6 +129,8 @@ public class MainLayout extends AppLayout {
                 || checkAccess(RestView.class)
                 || checkAccess(TaskListView.class)
                 || checkAccess(QBOConnectView.class)
+                || checkAccess(DriverAdjustmentTemplateView.class)
+                || checkAccess(GiftCardView.class)
                 || checkAccess(TasksView.class)) {
             AppNavItem utilities = new AppNavItem("Utilities");
             utilities.setIconClass("la la-folder-open");
@@ -136,6 +138,10 @@ public class MainLayout extends AppLayout {
             if (checkAccess(DriversView.class)) {
                 AppNavItem driversMenu = new AppNavItem("Drivers", DriversView.class, "la la-car-side");
                 utilities.addItem(driversMenu);
+            }
+            if (checkAccess(DriverAdjustmentTemplateView.class)) {
+                AppNavItem driverAdjustMenu = new AppNavItem("Driver Adj Templates", DriverAdjustmentTemplateView.class, "la la-car-side");
+                utilities.addItem(driverAdjustMenu);
             }
             if (checkAccess(RestView.class)) {
                 AppNavItem restMenu = new AppNavItem("Restaurants", RestView.class, "la la-store-alt");

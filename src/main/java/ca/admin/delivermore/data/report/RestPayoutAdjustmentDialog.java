@@ -106,7 +106,7 @@ public class RestPayoutAdjustmentDialog {
             if(dialogAdjustmentAmount.getValue()==null){
                 selectedRestAdjustment.setAdjustmentAmount(0.0);
             }else{
-                selectedRestAdjustment.setAdjustmentAmount(dialogAdjustmentAmount.getValue());
+                selectedRestAdjustment.setAdjustmentAmount(dialogAdjustmentAmount.getNumberField().getValue());
             }
             selectedRestAdjustment.setAdjustmentDate(dialogAdjustmentDate.getValue());
             selectedRestAdjustment.setAdjustmentNote(dialogAdjustmentNote.getValue());

@@ -11,9 +11,6 @@ import ca.admin.delivermore.gridexporter.ButtonsAlignment;
 import ca.admin.delivermore.gridexporter.GridExporter;
 import ca.admin.delivermore.views.MainLayout;
 import ca.admin.delivermore.views.UIUtilities;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -293,43 +290,7 @@ public class GiftCardView extends VerticalLayout {
     private void sendGiftCardEmail(GiftCardEntity item) {
         //TODO: send email
         //send email to customer and support with amount and balance
-        String email = "support@delivermore.ca";
-        if(!item.getEmailAddresses().isEmpty()){
-            email += "," + item.getEmailAddresses();
-        }
-        String gcUse = "Note: to use this gift card please make sure to have the Code mentioned above available to present to the driver upon delivery.<br><br>";
-        String balanceInfo = "";
-        if(item.getBalance()>0){
-            balanceInfo = "&nbsp;Balance $" + item.getBalance() + ".<br><br>";
-        }else{
-            balanceInfo = "&nbsp;Balance - your card no longer has a balance.<br><br>";
-            gcUse = "";
-        }
-        String thanks = "Thanks for using DeliverMore!<br><br>Visit us at <a href=\"https://delivermore.ca\">delivermore.ca</a>";
-        String customerInfo = "Purchased by:" + item.getCustomerName() + "<br>";
-        if(item.getAsGift()){
-            customerInfo += "&nbsp;For:" + item.getGiftName() + "<br>";
-            if(item.hasGiftNote()){
-                customerInfo += "&nbsp;Note:" + item.getGiftNote() + "<br>";
-            }
-        }
-        customerInfo += "<br>";
-        String subject = "DeliverMore Gift Card " + item.getCode() + " details";
-        String gcCode = "DeliverMore Gift Card Code: " + item.getCode();
-
-        //include any transactions
-        String transactionList = "";
-        List<GiftCardTranactionEntity> transactions = item.getTransactions();
-        if(transactions.size()>0){
-            transactionList = "&nbsp;Past transactions:<br>";
-            for (GiftCardTranactionEntity tItem: transactions) {
-                transactionList += "&nbsp;&nbsp;Date:" + tItem.getTransactionDateTimeFmt() + " Amount: $" + tItem.getAmount() + "<br>";
-            }
-            transactionList += "<br>";
-        }
-
-        String body = "<p>" + gcCode + "<br><br>" + customerInfo + "Here are the details of your gift card.<br>&nbsp;Original amount: $" + item.getAmount() + "<br>" + balanceInfo + transactionList + gcUse + thanks + "</p>";
-        emailService.sendMailWithHtmlBody(email,subject, body);
+        emailService.sendMailWithHtmlBody(item.getEmailFullAddress(),item.getEmailSubject(), item.getEmailBody());
 
         UIUtilities.showNotification("Gift Card details sent");
     }

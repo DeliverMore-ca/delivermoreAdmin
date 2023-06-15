@@ -291,7 +291,7 @@ public class TaskEditDialog {
         //update taskEntity from fields
         if(displayMode.equals(DisplayMode.GLOBAL)){
             this.taskEntity.setGlobalSubtotal(fieldGlobalSubTotal.getValue());
-            this.taskEntity.setGlobalTotalTaxes(fieldGlobalTaxes.getValue());
+            this.taskEntity.setGlobalTotalTaxes(fieldGlobalTaxes.getNumberField().getValue());
             if(posGlobal){
                 this.taskEntity.setPaidToVendor(fieldPaidToVendor.getValue());
             }
@@ -306,7 +306,7 @@ public class TaskEditDialog {
         this.taskEntity.setDeliveryFee(fieldDeliveryFee.getValue());
         this.taskEntity.setServiceFeePercent(fieldServiceFeePercent.getValue());
         this.taskEntity.setServiceFee(fieldServiceFee.getValue());
-        this.taskEntity.setTotalSale(fieldTotalSale.getValue());
+        this.taskEntity.setTotalSale(fieldTotalSale.getNumberField().getValue());
         this.taskEntity.setTip(fieldTip.getValue());
         this.taskEntity.setTipInNotesIssue(fieldTipIssue.getValue());
 
