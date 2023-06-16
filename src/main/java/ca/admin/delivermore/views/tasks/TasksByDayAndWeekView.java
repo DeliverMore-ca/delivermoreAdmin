@@ -89,8 +89,9 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         //grid.setClassName("no-upload-grid-no");
         //grid.setClassName("task-record");
         colName = grid.addColumn(TasksForWeek::getWeekName)
-                .setWidth("150px")
-                .setHeader("Week");
+                .setWidth("125px")
+                .setHeader("Week")
+                .setFrozen(true);
                 //.getElement().getStyle().set("background-color", "yellow");
         colSunday = grid.addColumn(TasksForWeek::getDowCountSunday)
                 .setTextAlign(ColumnTextAlign.END)
