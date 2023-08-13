@@ -1,5 +1,6 @@
 package ca.admin.delivermore.components.custom;
 
+import ca.admin.delivermore.collector.data.Config;
 import com.vaadin.flow.component.HasText;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -33,69 +34,30 @@ public class SchedulerMenuBar extends MenuBar {
     private MenuItem viewSelector;
     private MenuItem viewSettings;
     private MenuItem settingsIncludeAllDrivers;
-    private SchedulerView selectedView;
+    private CalendarView selectedView;
 
-    public SchedulerMenuBar(FullCalendar scheduler, SchedulerView selectedView) {
+    public SchedulerMenuBar(FullCalendar scheduler, CalendarView selectedView, Boolean isOnlyUser) {
         this.scheduler = scheduler;
         this.selectedView = selectedView;
+
+        addThemeVariants(MenuBarVariant.LUMO_TERTIARY);
+
         buildDateSelectors();
+
         Icon icon = new Icon(VaadinIcon.COG);
         viewSettings = addItem(icon, "Settings");
 
-        buildCalendarViewField();
-
-        settingsIncludeAllDrivers = viewSettings.getSubMenu().addItem("Show all drivers");
-        settingsIncludeAllDrivers.setCheckable(true);
-        settingsIncludeAllDrivers.setChecked(false);
-        settingsIncludeAllDrivers.addClickListener(e -> {
-            log.info("ClickListener IncludeAllDrivers");
-            scheduler.changeView(selectedView);
-        });
-
-        addThemeVariants(MenuBarVariant.LUMO_SMALL);
-    }
-
-    private void buildCalendarViewField(){
-        List<SchedulerView> calendarViews = new ArrayList<>();
-        calendarViews.add(SchedulerView.RESOURCE_TIMELINE_DAY);
-        calendarViews.add(SchedulerView.RESOURCE_TIMELINE_WEEK);
-        calendarViews.add(SchedulerView.RESOURCE_TIMELINE_MONTH);
-        calendarViews.add(SchedulerView.RESOURCE_TIME_GRID_DAY);
-        calendarViews.add(SchedulerView.RESOURCE_TIME_GRID_WEEK);
-        //calendarViews = new ArrayList<>(Arrays.asList(SchedulerView.values()));
-        calendarViews.sort(Comparator.comparing(CalendarView::getName));
-        viewSelector = viewSettings.getSubMenu().addItem("View: " + getViewName(selectedView));
-        SubMenu subMenu = viewSelector.getSubMenu();
-        calendarViews.stream()
-                .sorted(Comparator.comparing(this::getViewName))
-                .forEach(view -> {
-                    String viewName = getViewName(view);
-                    MenuItem menuItem = subMenu.addItem(viewName, event -> {
-                        scheduler.changeView(view);
-                        viewSelector.setText("View: " + viewName);
-                        selectedView = view;
-                        for (MenuItem item: viewSelector.getSubMenu().getItems()) {
-                            item.setChecked(false);
-                        }
-                        event.getSource().setChecked(true);
-                        //scheduler.changeView(selectedView);
-                    });
-                    menuItem.setCheckable(true);
-                    if(view.equals(selectedView)){
-                        menuItem.setChecked(true);
-                    }else{
-                        menuItem.setChecked(false);
-                    }
-                });
-    }
-
-    private String getViewName(CalendarView view) {
-        String name = null /*customViewNames.get(view)*/;
-        if (name == null) {
-            name = StringUtils.capitalize(String.join(" ", StringUtils.splitByCharacterTypeCamelCase(view.getClientSideValue())));
+        if(!isOnlyUser){
+            settingsIncludeAllDrivers = viewSettings.getSubMenu().addItem("Show all drivers");
+            settingsIncludeAllDrivers.setCheckable(true);
+            settingsIncludeAllDrivers.setChecked(false);
+            settingsIncludeAllDrivers.addClickListener(e -> {
+                log.info("ClickListener IncludeAllDrivers");
+                scheduler.changeView(selectedView);
+            });
         }
 
-        return name;
+        addThemeVariants(MenuBarVariant.LUMO_SMALL);
     }
 
     private void buildDateSelectors(){
@@ -120,7 +82,7 @@ public class SchedulerMenuBar extends MenuBar {
     }
 
     public void updateInterval(LocalDate intervalStart) {
-        log.info("updateInterval: selectedView:" + selectedView + " scheduler:" + scheduler.toString());
+        //log.info("updateInterval: scheduler:" + scheduler.toString());
         if (buttonDatePicker != null && selectedView != null) {
             updateIntervalLabel(buttonDatePicker, selectedView, intervalStart);
         }
@@ -129,67 +91,17 @@ public class SchedulerMenuBar extends MenuBar {
     void updateIntervalLabel(HasText intervalLabel, CalendarView view, LocalDate intervalStart) {
         String text = "--";
         Locale locale = scheduler.getLocale();
-
-        if (view instanceof CalendarViewImpl) {
-            switch ((CalendarViewImpl) view) {
-                default:
-                case DAY_GRID_MONTH:
-                case LIST_MONTH:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("MMMM yyyy").withLocale(locale));
-                    break;
-                case TIME_GRID_DAY:
-                case DAY_GRID_DAY:
-                case LIST_DAY:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(locale));
-                    break;
-                case TIME_GRID_WEEK:
-                case DAY_GRID_WEEK:
-                case LIST_WEEK:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("dd.MM.yy").withLocale(locale)) + " - " + intervalStart.plusDays(6).format(DateTimeFormatter.ofPattern("dd.MM.yy").withLocale(locale)) + " (cw " + intervalStart.format(DateTimeFormatter.ofPattern("ww").withLocale(locale)) + ")";
-                    break;
-                case LIST_YEAR:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("yyyy").withLocale(locale));
-                    break;
-            }
-        } else if (view instanceof SchedulerView) {
-            switch ((SchedulerView) view) {
-                case TIMELINE_DAY:
-                case RESOURCE_TIMELINE_DAY:
-                case RESOURCE_TIME_GRID_DAY:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("MMM dd yyyy").withLocale(locale));
-                    break;
-                case TIMELINE_WEEK:
-                case RESOURCE_TIMELINE_WEEK:
-                case RESOURCE_TIME_GRID_WEEK:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("M/d/yy").withLocale(locale)) + " - " + intervalStart.plusDays(6).format(DateTimeFormatter.ofPattern("M/d/yy").withLocale(locale));
-                    break;
-                case TIMELINE_MONTH:
-                case RESOURCE_TIMELINE_MONTH:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("MMMM yyyy").withLocale(locale));
-                    break;
-                case TIMELINE_YEAR:
-                case RESOURCE_TIMELINE_YEAR:
-                    text = intervalStart.format(DateTimeFormatter.ofPattern("yyyy").withLocale(locale));
-                    break;
-            }
-        } else {
-            String pattern = view != null && view.getDateTimeFormatPattern() != null ? view.getDateTimeFormatPattern() : "MMMM yyyy";
-            text = intervalStart.format(DateTimeFormatter.ofPattern(pattern).withLocale(locale));
-
-        }
+        text = intervalStart.format(DateTimeFormatter.ofPattern("M/d/yy").withLocale(locale)) + " - " + intervalStart.plusDays(6).format(DateTimeFormatter.ofPattern("M/d/yy").withLocale(locale));
 
         intervalLabel.setText(text);
     }
 
-    public SchedulerView getSelectedView() {
-        return selectedView;
-    }
-
-    public void setSelectedView(SchedulerView selectedView) {
-        this.selectedView = selectedView;
-    }
-
     public Boolean getShowAllDrivers(){
+        if(settingsIncludeAllDrivers==null) return Boolean.FALSE;
         return settingsIncludeAllDrivers.isChecked();
+    }
+
+    public MenuItem getSettingsMenuItem(){
+        return viewSettings;
     }
 }

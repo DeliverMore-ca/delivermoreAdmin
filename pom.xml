@@ -170,12 +170,12 @@
         <dependency>
             <groupId>org.vaadin.stefan</groupId>
             <artifactId>fullcalendar2</artifactId>
-            <version>4.1.6</version>
+            <version>6.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.vaadin.stefan</groupId>
             <artifactId>fullcalendar2-scheduler</artifactId>
-            <version>4.1.6</version>
+            <version>6.0.0</version>
         </dependency>
         <!-- Include JUnit 4 support for TestBench and others -->
         <dependency>
@@ -251,7 +251,7 @@
         <dependency>
             <groupId>org.dmfs</groupId>
             <artifactId>lib-recur</artifactId>
-            <version>0.13.0</version>
+            <version>0.15.0</version>
         </dependency>
         <dependency>
             <groupId>org.passay</groupId>
@@ -267,6 +267,11 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.69</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sf.biweekly</groupId>
+            <artifactId>biweekly</artifactId>
+            <version>0.6.7</version>
         </dependency>
     </dependencies>
 

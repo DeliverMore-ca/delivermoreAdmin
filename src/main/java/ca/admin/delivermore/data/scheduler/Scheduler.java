@@ -29,6 +29,15 @@ public final class Scheduler {
         CALENDAR, DIALOG
     }
 
+    public static enum SchedulerType{
+        LIST("List"), CALENDAR("Calendar");
+
+        public final String typeName;
+        private SchedulerType(String s) {
+            this.typeName = s;
+        }
+    }
+
     public static enum EventType{
         SHIFT("Shift"), UNAVAILABLE("Unavailable"), OFF("Time off");
 
@@ -39,7 +48,7 @@ public final class Scheduler {
     }
 
     public static enum EventColor{
-        SHIFT("#4cdd66"), UNAVAILABLE("var(--lumo-contrast-80pct)"), OFF("var(--lumo-primary-color-50pct)");
+        SHIFT("#4cdd66"), UNAVAILABLE("var(--lumo-contrast-30pct)"), OFF("var(--lumo-primary-color-50pct)");
 
         public final String color;
         private EventColor(String s) {
@@ -55,5 +64,21 @@ public final class Scheduler {
             this.typeName = s;
         }
     }
+
+    public static String getIntervalString(Integer interval){
+        if(interval.equals(2)){
+            return  "Reoccur every 2nd ";
+        }else if(interval.equals(3)){
+            return  "Reoccur every 3rd ";
+        }else if(interval.equals(4)){
+            return  "Reoccur every 4th ";
+        }else{
+            return  "Reoccur every ";
+        }
+    }
+
+    public static String unpublishedPrefix = "*";
+    public static String reoccurPrefix = "&";
+
 
 }

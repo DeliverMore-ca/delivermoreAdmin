@@ -1,9 +1,11 @@
 package ca.admin.delivermore.data.scheduler;
 
 import ca.admin.delivermore.collector.data.service.DriversRepository;
+import ca.admin.delivermore.collector.data.service.EmailService;
 import ca.admin.delivermore.collector.data.tookan.Driver;
 import ca.admin.delivermore.components.custom.Divider;
 import ca.admin.delivermore.data.service.Registry;
+import ca.admin.delivermore.data.service.SchedulerEventGroupRepository;
 import ca.admin.delivermore.data.service.SchedulerEventRepository;
 import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.Html;
@@ -18,30 +20,28 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datepicker.DatePickerVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectVariant;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.component.timepicker.TimePickerVariant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.vaadin.stefan.fullcalendar.EntryTimeChangedEvent;
-import org.vaadin.stefan.fullcalendar.ResourceEntry;
-import org.vaadin.stefan.fullcalendar.SchedulerView;
+import org.vaadin.stefan.fullcalendar.*;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class SchedulerEventDialog {
     public enum DialogMode{
@@ -57,6 +57,9 @@ public class SchedulerEventDialog {
     private Icon okIcon = new Icon("lumo", "checkmark");
     private Button dialogCancelButton = new Button(new Icon("lumo", "cross"));
     private Button dialogResetButton = new Button();
+
+    private Button dialogPublishButton = new Button(new Icon(VaadinIcon.CHECK));
+
     private Icon resetIcon = new Icon("lumo", "undo");
     private Button dialogDeleteButton = new Button();
     private Button dialogCloseButton = new Button(new Icon("lumo", "cross"));
@@ -78,17 +81,38 @@ public class SchedulerEventDialog {
 
     private Checkbox dialogPublished = new Checkbox();
 
+    private Checkbox dialogReoccur = new Checkbox();
+
+    private DatePicker dialogReoccurUntil = new DatePicker();
+
+    private IntegerField dialogReoccurInterval = new IntegerField();
+
+    private HorizontalLayout dialogReoccurSelection = UIUtilities.getHorizontalLayout();
+
     private DriversRepository driversRepository;
     private SchedulerEventRepository schedulerEventRepository;
+    private SchedulerEventGroupRepository schedulerEventGroupRepository;
+
+    private EmailService emailService;
 
     private SchedulerEvent event;
     private Driver driver;
+    private Boolean isOnlyUser = Boolean.TRUE;
+    private Long signedInDriverId = 0L;
+    private List<Scheduler.EventType> listNoShift = new ArrayList<>();
 
     private List<SchedulerRefreshNeededListener> schedulerRefreshNeededListeners = new ArrayList<>();
 
     public SchedulerEventDialog() {
         this.driversRepository = Registry.getBean(DriversRepository.class);
         schedulerEventRepository = Registry.getBean(SchedulerEventRepository.class);
+        schedulerEventGroupRepository = Registry.getBean(SchedulerEventGroupRepository.class);
+        this.emailService = Registry.getBean(EmailService.class);
+
+        //create a list of EventType to use for Drivers who cannot create Shifts
+        listNoShift.add(Scheduler.EventType.UNAVAILABLE);
+        listNoShift.add(Scheduler.EventType.OFF);
+
         dialogConfigure();
     }
 
@@ -104,6 +128,7 @@ public class SchedulerEventDialog {
         dialogDeleteButton.setIcon(deleteIcon);
         dialogDeleteButton.setText("Delete");
         dialogDeleteButton.addClickListener(event -> {
+            dialogMode = DialogMode.DELETE;
             dialogDelete();
         });
 
@@ -119,7 +144,6 @@ public class SchedulerEventDialog {
 
         dialogOkButton.addClickListener(
                 event -> {
-                    //TODO: check for conflict
                     dialogSave();
                 }
         );
@@ -136,9 +160,30 @@ public class SchedulerEventDialog {
                     dialogValidate();
                 }
         );
+
+        dialogPublishButton.addClickListener(event -> {
+            //publish this single entry
+            this.event.setPublished(true);
+            schedulerEventRepository.save(this.event);
+            String emailTo = driver.getEmail();
+            String emailSubject = "DeliverMore Schedule: Time off approved";
+            String emailBody = "<p>";
+            emailBody += this.event.formatSummaryForNotification();
+            emailBody += "</p>";
+            emailService.sendMailWithHtmlBody(emailTo, emailSubject, emailBody);
+            notifyRefreshNeeded();
+            dialog.close();
+            UIUtilities.showNotification("Approval sent to " + driver.getName() + " at " + driver.getEmail());
+        });
+        Icon pubIcon = new Icon(VaadinIcon.CHECK);
+        pubIcon.setColor("green");
+        dialogPublishButton.setIcon(pubIcon);
+        dialogPublishButton.setEnabled(false);
+        dialogPublishButton.setVisible(false);
+
         enableOkReset(false);
 
-        HorizontalLayout footerLayout = new HorizontalLayout(dialogOkButton,dialogDeleteButton,dialogResetButton);
+        HorizontalLayout footerLayout = new HorizontalLayout(dialogPublishButton,dialogOkButton,dialogDeleteButton,dialogResetButton);
 
         // Prevent click shortcut of the OK button from also triggering when another button is focused
         ShortcutRegistration shortcutRegistration = Shortcuts
@@ -165,72 +210,243 @@ public class SchedulerEventDialog {
     private void dialogDelete() {
         //delete with confirmation
         log.info("dialogDelete:");
-        ConfirmDialog dialogConfirmDelete = new ConfirmDialog();
-        dialogConfirmDelete.setHeader("Delete schedule entry?");
-        Html text = new Html("<p>Are you sure you want to permanently delete this item?<br>" + event.getDescription() + "</p>");
-        dialogConfirmDelete.setText(text);
 
-        dialogConfirmDelete.setCancelable(true);
-        //dialog.addCancelListener(event -> setStatus("Canceled"));
+        if(dialogReoccur.getValue()){
+            confirmEditReoccurItem(this.event, null);
+        }else{
+            ConfirmDialog dialogConfirmDelete = new ConfirmDialog();
+            dialogConfirmDelete.setHeader("Delete schedule entry?");
+            Html text = new Html("<p>Are you sure you want to permanently delete this item?<br>" + event.getDescription() + "</p>");
+            dialogConfirmDelete.setText(text);
 
-        dialogConfirmDelete.setConfirmText("Delete");
-        dialogConfirmDelete.setConfirmButtonTheme("error primary");
-        dialogConfirmDelete.addConfirmListener(event -> {
-            //TODO: perform delete here
-            schedulerEventRepository.delete(this.event);
-            dialog.close();
-            notifyRefreshNeeded();
-        });
-        dialogConfirmDelete.open();
+            dialogConfirmDelete.setCancelable(true);
+            //dialog.addCancelListener(event -> setStatus("Canceled"));
+
+            dialogConfirmDelete.setConfirmText("Delete");
+            dialogConfirmDelete.setConfirmButtonTheme("error primary");
+            dialogConfirmDelete.addConfirmListener(event -> {
+                if(isOnlyUser){ //user deleted a timeoff or unavailable so let admin know
+                    sendNotificationToAdmin(driver.getName(), this.event, Boolean.TRUE, Boolean.FALSE);
+                }
+
+                schedulerEventRepository.delete(this.event);
+                dialog.close();
+                notifyRefreshNeeded();
+            });
+            dialogConfirmDelete.open();
+        }
+
+
 
     }
 
     private void dialogSave() {
         log.info("dialogSave:");
-        //TODO: check for conflict first
         String sourceId = null;
         if(this.event.getId()!=null){
             sourceId = this.event.getId().toString();
         }
-        String targetResourceId = dialogDriver.getValue().getFleetId().toString();
         LocalDateTime targetStart = LocalDateTime.of(dialogStartDate.getValue(),dialogStartTime.getValue());
         LocalDateTime targetEnd = LocalDateTime.of(dialogStartDate.getValue(),dialogEndTime.getValue());
-        if(dialogDurationType.getValue().equals(Scheduler.EventDurationType.FULLDAY)){
-            targetStart = LocalDateTime.of(targetStart.toLocalDate(), Scheduler.minTime);
-            targetEnd = LocalDateTime.of(targetStart.toLocalDate(), Scheduler.maxTime);
-        }
-
-        LocalDateTime targetStartWithOffset = targetStart;
-        LocalDateTime targetEndWithOffset = targetEnd;
         Boolean forceAllDay = false;
+        String targetResourceId;
+        if(dialogDriver.isEmpty()){
+            targetResourceId = Scheduler.availableShiftsResourceId;
+            saveDialogEditedEvent(sourceId,targetResourceId,targetStart,targetEnd, forceAllDay);
+        }else{
+            targetResourceId = dialogDriver.getValue().getFleetId().toString();
+            if(dialogDurationType.getValue().equals(Scheduler.EventDurationType.FULLDAY)){
+                targetStart = LocalDateTime.of(targetStart.toLocalDate(), Scheduler.minTime);
+                targetEnd = LocalDateTime.of(targetStart.toLocalDate(), Scheduler.maxTime);
+            }
 
-        allowSave(sourceId, targetResourceId, targetStart, targetEnd, targetStartWithOffset, targetEndWithOffset, forceAllDay, null);
+            LocalDateTime targetStartWithOffset = targetStart;
+            LocalDateTime targetEndWithOffset = targetEnd;
 
+            allowSave(sourceId, targetResourceId, targetStart, targetEnd, targetStartWithOffset, targetEndWithOffset, forceAllDay, null);
+        }
     }
 
     private void saveDialogEditedEvent(String id, String resourceId, LocalDateTime start, LocalDateTime end, Boolean allDayView ){
         this.event.setType(dialogEventType.getValue());
-        if(dialogDurationType.getValue().equals(Scheduler.EventDurationType.FULLDAY)){
-            this.event.setFullDay(true);
-            //make sure the start and end are set to the start and end of the day
-            this.event.setStart(LocalDateTime.of(start.toLocalDate(), Scheduler.minTime));
-            this.event.setEnd(LocalDateTime.of(start.toLocalDate(), Scheduler.maxTime));
-        }else{
-            this.event.setFullDay(false);
-            this.event.setStart(start);
-            this.event.setEnd(end);
-        }
+        String originalResourceId = this.event.getResourceId();
         this.event.setResourceId(resourceId);
         //set the event to NOT published so it will get published later
-        this.event.setPublished(false);
+        //this.event.setPublished(false);
 
-        schedulerEventRepository.save(this.event);
+        List<LocalDate> occurences = new ArrayList<>();
+        if(dialogReoccur.getValue()){
+            //save all event reoccurences
+            log.info("saveDialogEditedEvent: reoccur:");
+
+            if(dialogMode.equals(DialogMode.NEW)){
+                SchedulerEventGroup eventGroup = new SchedulerEventGroup();
+                eventGroup.setReoccurInterval(dialogReoccurInterval.getValue());
+                eventGroup.setReoccurUntil(dialogReoccurUntil.getValue());
+                eventGroup.setDOW(this.event.getStart().getDayOfWeek());
+                occurences = eventGroup.getReoccurDates(start.toLocalDate());
+
+                schedulerEventGroupRepository.save(eventGroup);
+                this.event.setEventGroup(eventGroup);
+            }else {
+                confirmEditReoccurItem(event, originalResourceId);
+
+            }
+
+        }else{
+            //save the single event
+            occurences.add(start.toLocalDate());
+        }
+
+        log.info("saveDialogEditedEvent: occurences:" + occurences);
+        Integer itemCounter = 0;
+        for (LocalDate occurDate: occurences) {
+            itemCounter++;
+            if(dialogDurationType.getValue().equals(Scheduler.EventDurationType.FULLDAY)){
+                log.info("saveDialogEditedEvent: FullDay: occurDate:" + occurDate);
+                this.event.setFullDay(true);
+                //make sure the start and end are set to the start and end of the day
+                this.event.setStart(LocalDateTime.of(occurDate, Scheduler.minTime));
+                this.event.setEnd(LocalDateTime.of(occurDate, Scheduler.maxTime));
+            }else{
+                log.info("saveDialogEditedEvent: occurDate:" + occurDate);
+                this.event.setFullDay(false);
+                this.event.setStart(LocalDateTime.of(occurDate, start.toLocalTime()));
+                this.event.setEnd(LocalDateTime.of(occurDate, end.toLocalTime()));
+            }
+            log.info("saveDialogEditedEvent: saving occurDate:" + occurDate + " start:" + this.event.getStart() + " end:" + this.event.getEnd());
+
+            //auto publish certain events
+            if(this.event.getType().equals(Scheduler.EventType.OFF)){
+                if(!isOnlyUser){
+                    // no need to send notification for Admin created Time Off as user requested it
+                    this.event.setPublished(true);
+                }else{
+                    //for reoccurring events only notify once
+                    if(itemCounter.equals(1)){
+                        sendNotificationToAdmin(driver.getName(), this.event, Boolean.FALSE, Boolean.FALSE);
+                        UIUtilities.showNotification("Request for time off has been sent for approval!");
+                    }
+                }
+            }else if(this.event.getType().equals(Scheduler.EventType.UNAVAILABLE)){
+                if(!isOnlyUser){
+                    // no need to send notification for Admin created Unavailable as user requested it
+                }else{
+                    if(itemCounter.equals(1)){
+                        sendNotificationToAdmin(driver.getName(), this.event, Boolean.FALSE, Boolean.FALSE);
+                        UIUtilities.showNotification("Admin has been notified");
+                    }
+                }
+                this.event.setPublished(true);
+            }else if(dialogMode.equals(DialogMode.NEW)){  //New SHIFT - notification will go when published
+                this.event.setPublished(false);
+            }else if(dialogMode.equals(DialogMode.EDIT)){  //Edit SHIFT
+                if(this.event.getPublished()){
+                    //if already published then need to notify driver of change
+                    publishedShiftNotifications(this.event,originalResourceId, resourceId);
+                } //else notification will go when published
+            }
+
+            if(itemCounter.equals(1)){  //for first item save it - the others need to be copies
+                schedulerEventRepository.save(this.event);
+            }else{
+                schedulerEventRepository.save(new SchedulerEvent(this.event));
+            }
+        }
+
         notifyRefreshNeeded();
         dialog.close();
     }
 
+    private void publishedShiftNotifications(SchedulerEvent eventForNotification, String originalResourceId, String resourceId){
+        if(originalResourceId.equals(resourceId)){ //driver did not change
+            sendNotificationToDriver(resourceId,eventForNotification, Boolean.FALSE);
+        }else{ //driver changed - notify BOTH old and new driver
+            if(originalResourceId.equals("0")){ //assigned shift so only notify new driver
+                sendNotificationToDriver(resourceId,eventForNotification, Boolean.FALSE);
+            }else if(resourceId.equals("0")){
+                //notify original driver shift has been removed from schedule
+                sendNotificationToDriver(originalResourceId,eventForNotification, Boolean.TRUE);
 
-    public void checkForConflict(EntryTimeChangedEvent e, SchedulerView schedulerView) {
+                //notify all active drivers shift is now available
+                sendNotificationToActiveDrivers(eventForNotification);
+
+
+            }else{
+                sendNotificationToDriver(resourceId,eventForNotification, Boolean.FALSE);
+                sendNotificationToDriver(originalResourceId,eventForNotification, Boolean.TRUE);
+            }
+
+        }
+
+    }
+
+    private void sendNotificationToActiveDrivers(SchedulerEvent eventForNotification){
+        String driverName = Scheduler.availableShiftsDisplayName;
+        String driverEmail = null;
+        List<Driver> activeDrivers = driversRepository.findActiveOrderByNameAsc();
+        for (Driver activeDriver: activeDrivers ) {
+            if(driverEmail==null){
+                driverEmail = activeDriver.getEmail();
+            }else{
+                driverEmail += ", " + activeDriver.getEmail();
+            }
+        }
+        String emailTo = driverEmail;
+        String emailSubject = "DM Schedule: " + driverName + eventForNotification.formatSummaryForNotification();
+        String emailBody = "<p>";
+        emailBody += "The following shift is now available...<br><br>";
+        UIUtilities.showNotification("An available shift has been sent to all active drivers");
+        emailBody += eventForNotification.formatSummaryForNotification();
+
+        emailBody += "</p>";
+        emailService.sendMailWithHtmlBody(emailTo, emailSubject, emailBody);
+    }
+
+    private void sendNotificationToDriver(String resourceId, SchedulerEvent eventForNotification, Boolean isDelete){
+        Driver driverToNotify = driversRepository.findByFleetId(Long.valueOf(resourceId));
+        if(driverToNotify==null){
+            log.info("sendNotificationToDriver: resourceId:" + resourceId + " not found - lookup failed");
+            return;
+        }
+        String driverName = driverToNotify.getName();
+        String emailTo = driverToNotify.getEmail();
+        String emailSubject = "DM Schedule Change: " + driverName + eventForNotification.formatSummaryForNotification();
+        String emailBody = "<p>";
+        if(isDelete){
+            emailBody += "You are no longer scheduled for this shift<br><br>";
+            UIUtilities.showNotification("Driver " + driverName + " has been notified they are no longer scheduled for this shift");
+        }else{
+            emailBody += "This shift has been added to your schedule<br><br>";
+            UIUtilities.showNotification("Driver " + driverName + " has been notified this shift added to their schedule");
+        }
+        emailBody += eventForNotification.formatSummaryForNotification();
+
+        emailBody += "</p>";
+        emailService.sendMailWithHtmlBody(emailTo, emailSubject, emailBody);
+    }
+
+    private void sendNotificationToAdmin(String driverName, SchedulerEvent eventForNotification, Boolean isDelete, Boolean ignoreReoccurr){
+        String emailTo = "support@delivermore.ca";
+        String emailSubject = "DM Schedule: " + driverName + eventForNotification.formatSummaryForNotification();
+        String emailBody = "<p>";
+        if(isDelete){
+            emailBody += "Driver deleted this entry<br><br>";
+        }else{
+            emailBody += "Driver created or modified this entry<br><br>";
+        }
+        emailBody += eventForNotification.formatSummaryForNotification();
+        if(eventForNotification.getEventGroup()!=null && !ignoreReoccurr){
+            //reoccurring event
+            emailBody += "<br> - this entry reoccurs!";
+        }
+
+        emailBody += "</p>";
+        emailService.sendMailWithHtmlBody(emailTo, emailSubject, emailBody);
+    }
+
+
+    public void checkForConflict(EntryTimeChangedEvent e, CalendarView schedulerView) {
         Boolean allDaySlotUsed = null;
         editType = Scheduler.EditType.CALENDAR;
         //needs to return info about conflict event for display
@@ -252,7 +468,7 @@ public class SchedulerEventDialog {
         String sourceId = newResourceEntry.getId();
 
         Boolean forceAllDay = Boolean.TRUE;
-        if(schedulerView.equals(SchedulerView.RESOURCE_TIMELINE_WEEK) || schedulerView.equals(SchedulerView.RESOURCE_TIMELINE_MONTH)){
+        if(schedulerView.equals(SchedulerView.RESOURCE_TIMELINE_WEEK) || schedulerView.equals(SchedulerView.RESOURCE_TIMELINE_MONTH) || schedulerView.equals(CalendarViewImpl.LIST_WEEK)){
             forceAllDay = Boolean.TRUE;
             //these views do not have an AllDaySlot so set to null
             allDaySlotUsed = null;
@@ -335,7 +551,7 @@ public class SchedulerEventDialog {
 
             confirmDialogBox.open();
         }else{
-            log.info("allowSave: No conflict found");
+            log.info("allowSave: No conflict found or skipped");
             if(editType.equals(Scheduler.EditType.CALENDAR)){
                 saveCalendarEditedEvent(sourceId,targetResourceId,targetStart,targetEnd, forceAllDay, allDaySlotUsed);
             }else{
@@ -368,41 +584,179 @@ public class SchedulerEventDialog {
     private void saveCalendarEditedEvent(String id, String resourceId, LocalDateTime start, LocalDateTime end, Boolean allDayView, Boolean allDaySlotUsed ){
         log.info("saveCalendarEditedEvent: save changes: start:" + start + " end:" + end);
         Optional<SchedulerEvent> eventToEdit = schedulerEventRepository.findById(Long.valueOf(id));
+
+
+
         if(eventToEdit==null){
             log.info("saveCalendarEditedEvent: save FAILED: event id not found for:" + id);
         }else{
-            if(allDayView || eventToEdit.get().getFullDay()){
-                log.info("saveCalendarEditedEvent: AllDayView: update fields started");
-                eventToEdit.get().setStart(LocalDateTime.of(start.toLocalDate(),eventToEdit.get().getStart().toLocalTime()));
-                eventToEdit.get().setEnd(LocalDateTime.of(start.toLocalDate(),eventToEdit.get().getEnd().toLocalTime()));
+            if(eventToEdit.get().getEventGroup()!=null){
+                UIUtilities.showNotification("Cannot drag/drop a reoccurring entry. Select entry and edit using the dialog!");
+                //confirmEditReoccurItem(eventToEdit.get());
             }else{
-                log.info("saveCalendarEditedEvent: Other: update fields started: start:" + Scheduler.tzDefault.applyTimezoneOffset(start) + " end:" + Scheduler.tzDefault.applyTimezoneOffset(end));
-                eventToEdit.get().setStart(Scheduler.tzDefault.applyTimezoneOffset(start));
-                eventToEdit.get().setEnd(Scheduler.tzDefault.applyTimezoneOffset(end));
-            }
-            eventToEdit.get().setResourceId(resourceId);
-            //check to see if we need to change the duration type
-            if(allDaySlotUsed==null){
-                //do not change anything
-                log.info("saveCalendarEditedEvent: allDaySlotUsed was null - no change");
-            }else if(allDaySlotUsed){
-                log.info("saveCalendarEditedEvent: allDaySlotUsed true. Force duration to full day");
-                eventToEdit.get().setFullDay(true);
-                eventToEdit.get().setStart(LocalDateTime.of(start.toLocalDate(), Scheduler.minTime));
-                eventToEdit.get().setEnd(LocalDateTime.of(start.toLocalDate(), Scheduler.maxTime));
-            }else{
-                log.info("saveCalendarEditedEvent: allDaySlotUsed false. Force duration to partial day: start:" + start + " end:" + end);
-                eventToEdit.get().setFullDay(false);
-                eventToEdit.get().setStart(Scheduler.tzDefault.applyTimezoneOffset(start));
-                eventToEdit.get().setEnd(Scheduler.tzDefault.applyTimezoneOffset(end));
-            }
-            //set the event to NOT published so it will get published later
-            eventToEdit.get().setPublished(false);
+                if(allDayView || eventToEdit.get().getFullDay()){
+                    log.info("saveCalendarEditedEvent: AllDayView: update fields started");
+                    eventToEdit.get().setStart(LocalDateTime.of(start.toLocalDate(),eventToEdit.get().getStart().toLocalTime()));
+                    eventToEdit.get().setEnd(LocalDateTime.of(start.toLocalDate(),eventToEdit.get().getEnd().toLocalTime()));
+                }else{
+                    log.info("saveCalendarEditedEvent: Other: update fields started: start:" + Scheduler.tzDefault.applyTimezoneOffset(start) + " end:" + Scheduler.tzDefault.applyTimezoneOffset(end));
+                    eventToEdit.get().setStart(Scheduler.tzDefault.applyTimezoneOffset(start));
+                    eventToEdit.get().setEnd(Scheduler.tzDefault.applyTimezoneOffset(end));
+                }
+                eventToEdit.get().setResourceId(resourceId);
+                //check to see if we need to change the duration type
+                if(allDaySlotUsed==null){
+                    //do not change anything
+                    log.info("saveCalendarEditedEvent: allDaySlotUsed was null - no change");
+                }else if(allDaySlotUsed){
+                    log.info("saveCalendarEditedEvent: allDaySlotUsed true. Force duration to full day");
+                    eventToEdit.get().setFullDay(true);
+                    eventToEdit.get().setStart(LocalDateTime.of(start.toLocalDate(), Scheduler.minTime));
+                    eventToEdit.get().setEnd(LocalDateTime.of(start.toLocalDate(), Scheduler.maxTime));
+                }else{
+                    log.info("saveCalendarEditedEvent: allDaySlotUsed false. Force duration to partial day: start:" + start + " end:" + end);
+                    eventToEdit.get().setFullDay(false);
+                    eventToEdit.get().setStart(Scheduler.tzDefault.applyTimezoneOffset(start));
+                    eventToEdit.get().setEnd(Scheduler.tzDefault.applyTimezoneOffset(end));
+                }
+                //set the event to NOT published so it will get published later
+                eventToEdit.get().setPublished(false);
 
-            schedulerEventRepository.save(eventToEdit.get());
-            log.info("saveCalendarEditedEvent: save performed");
+                schedulerEventRepository.save(eventToEdit.get());
+                log.info("saveCalendarEditedEvent: save performed");
+            }
+
         }
         notifyRefreshNeeded();
+    }
+
+    private void confirmEditReoccurItem(SchedulerEvent schedulerEvent, String originalResourceId) {
+        String changeString;
+        if(dialogMode.equals(DialogMode.DELETE)){
+            changeString = "delete";
+        }else{ //EDIT
+            changeString = "modify";
+        }
+
+        ConfirmDialog dialogConfirm = new ConfirmDialog();
+        dialogConfirm.setHeader("Confirm change to reoccurring entry?");
+        String note = "<br><br>* Note: modifying a single entry will remove it from the reoccurrence!";
+        Html text = new Html("<p>Are you sure you want to " + changeString + " this and all future reoccurring entries?<br>Original Entry:<br>" + schedulerEvent.getDescription() + note + "</p>");
+        dialogConfirm.setText(text);
+
+        dialogConfirm.setCancelable(true);
+        //dialog.addCancelListener(event -> setStatus("Canceled"));
+
+        dialogConfirm.setRejectable(true);
+        dialogConfirm.setRejectText(changeString.toUpperCase() + " + all future");
+        dialogConfirm.addRejectListener(event -> {
+            //get list of all future entries including this one
+            List<SchedulerEvent> schedulerEvents = schedulerEventRepository.findByEventGroup_IdAndStartGreaterThanEqual(schedulerEvent.getEventGroup().getId(),schedulerEvent.getStart());
+            log.info("confirmEditReoccurItem: future entries:" + schedulerEvents.size());
+
+            Integer eventCounter = 0;
+            for (SchedulerEvent schedulerEvent1: schedulerEvents) {
+                eventCounter++;
+                if(dialogMode.equals(DialogMode.DELETE)){
+                    log.info("confirmEditReoccurItem: deleting:" + schedulerEvent1);
+                    if(isOnlyUser && eventCounter.equals(1)){
+                        sendNotificationToAdmin(driver.getName(), schedulerEvent1, Boolean.TRUE, Boolean.FALSE);
+                    }
+                    schedulerEventRepository.delete(schedulerEvent1);
+                }else{
+                    updateEventDetails(schedulerEvent1);
+                    if(eventCounter.equals(1)){ //only notify once
+                        if(isOnlyUser){
+                            sendNotificationToAdmin(driver.getName(), schedulerEvent1, Boolean.FALSE, Boolean.FALSE);
+                        }else{
+                            if(dialogMode.equals(DialogMode.EDIT) && schedulerEvent1.getType().equals(Scheduler.EventType.SHIFT)){
+                                if(schedulerEvent1.getPublished()){
+                                    //if already published then need to notify driver of change
+                                    publishedShiftNotifications(this.event,originalResourceId, schedulerEvent1.getResourceId());
+                                } //else notification will go when published
+                            }
+                        }
+                    }
+                    log.info("confirmEditReoccurItem: saving:" + schedulerEvent1);
+                    schedulerEventRepository.save(schedulerEvent1);
+                }
+            }
+            if(dialogMode.equals(DialogMode.DELETE)){
+                cleanupEventGroup(schedulerEvent.getEventGroup().getId());
+            }
+            dialog.close();
+            notifyRefreshNeeded();
+        });
+
+        dialogConfirm.setConfirmText("Only this entry");
+        //dialogConfirm.setConfirmButtonTheme("error primary");
+        dialogConfirm.addConfirmListener(event -> {
+            if(dialogMode.equals(DialogMode.DELETE)){
+                if(isOnlyUser){
+                    sendNotificationToAdmin(driver.getName(), schedulerEvent, Boolean.TRUE, Boolean.TRUE);
+                }
+                schedulerEventRepository.delete(schedulerEvent);
+                cleanupEventGroup(schedulerEvent.getEventGroup().getId());
+            }else{
+                //remove this entry from the reoccur group
+                schedulerEvent.setEventGroup(null);
+                updateEventDetails(schedulerEvent);
+                log.info("confirmEditReoccurItem: saving:" + schedulerEvent);
+                if(isOnlyUser){
+                    sendNotificationToAdmin(driver.getName(), schedulerEvent, Boolean.FALSE, Boolean.TRUE);
+                }else{
+                    if(dialogMode.equals(DialogMode.EDIT) && schedulerEvent.getType().equals(Scheduler.EventType.SHIFT)){
+                        if(schedulerEvent.getPublished()){
+                            //if already published then need to notify driver of change
+                            publishedShiftNotifications(this.event,originalResourceId, schedulerEvent.getResourceId());
+                        } //else notification will go when published
+                    }
+                }
+                schedulerEventRepository.save(schedulerEvent);
+            }
+            dialog.close();
+            notifyRefreshNeeded();
+        });
+        dialogConfirm.open();
+    }
+
+    private void cleanupEventGroup(Long eventGroupId){
+        //check if there are ZERO entries with this eventGroupId and then delete
+        List<SchedulerEvent> checkEvents = schedulerEventRepository.findByEventGroup_Id(eventGroupId);
+        if(checkEvents==null || checkEvents.size()==0){
+            //delete the group record itself
+            log.info("cleanupEventGroup: deleting eventGroupId:" + eventGroupId);
+            schedulerEventGroupRepository.deleteById(eventGroupId);
+        }else{
+            log.info("cleanupEventGroup: " + checkEvents.size() + " entries found. Not deleting eventGroupId:" + eventGroupId);
+        }
+    }
+
+    private void updateEventDetails(SchedulerEvent schedulerEvent){
+        LocalDate occurDate = schedulerEvent.getStart().toLocalDate();
+        if(dialogDurationType.getValue().equals(Scheduler.EventDurationType.FULLDAY)){
+            log.info("updateEventDetails: FullDay: occurDate:" + occurDate);
+            schedulerEvent.setFullDay(true);
+            //make sure the start and end are set to the start and end of the day
+            schedulerEvent.setStart(LocalDateTime.of(occurDate, Scheduler.minTime));
+            schedulerEvent.setEnd(LocalDateTime.of(occurDate, Scheduler.maxTime));
+        }else{
+            log.info("updateEventDetails: occurDate:" + occurDate);
+            schedulerEvent.setFullDay(false);
+            schedulerEvent.setStart(LocalDateTime.of(occurDate, dialogStartTime.getValue()));
+            schedulerEvent.setEnd(LocalDateTime.of(occurDate, dialogEndTime.getValue()));
+        }
+        String targetResourceId;
+        if(dialogDriver.isEmpty()){
+            targetResourceId = Scheduler.availableShiftsResourceId;
+        }else{
+            targetResourceId = dialogDriver.getValue().getFleetId().toString();
+        }
+        schedulerEvent.setResourceId(targetResourceId);
+        schedulerEvent.setType(dialogEventType.getValue());
+        //edited event should be unpublished
+        //schedulerEvent.setPublished(Boolean.FALSE);
+
     }
 
     public void addListener(SchedulerRefreshNeededListener listener){
@@ -460,7 +814,6 @@ public class SchedulerEventDialog {
 
         Divider divider = new Divider();
 
-        //TODO: part or full day
         dialogDurationType.setItems(Scheduler.EventDurationType.values());
         dialogDurationType.setItemLabelGenerator(type -> {
             return type.typeName;
@@ -496,12 +849,35 @@ public class SchedulerEventDialog {
         dialogHours.setWidth("60px");
         dialogTimeSelection.add(dialogStartTime,dialogEndTime,dialogHours);
 
+        dialogReoccur.setLabel("Reoccur");
+        dialogReoccur.setEnabled(false);
+        dialogReoccur.addValueChangeListener(item -> {
+            if(validationEnabled){
+                updateReoccurFields();
+            }
+        });
+
+        dialogReoccurSelection.setVerticalComponentAlignment(FlexComponent.Alignment.BASELINE);
+        dialogReoccurInterval.setLabel("Interval");
+        dialogReoccurInterval.setEnabled(false);
+        dialogReoccurInterval.setVisible(false);
+        dialogReoccurInterval.setMin(1);
+        dialogReoccurInterval.setMax(4);
+        dialogReoccurInterval.setStepButtonsVisible(true);
+        dialogReoccurInterval.addValueChangeListener(item -> {
+            updateReoccurFields();
+        });
+        dialogReoccurUntil.setLabel("Until");
+        dialogReoccurUntil.setEnabled(false);
+        dialogReoccurUntil.setVisible(false);
+
+        dialogReoccurSelection.add(dialogReoccurInterval, dialogReoccurUntil);
+
         //Not changable from dialog - must perform a publish
-        //TODO: add a publish function
         dialogPublished.setLabel("Published");
         dialogPublished.setEnabled(false);
 
-        VerticalLayout fieldLayout = new VerticalLayout(dialogEventType,dialogDriver, dialogStartDate, new Divider(), dialogDurationType, dialogTimeSelection,new Divider(), dialogPublished);
+        VerticalLayout fieldLayout = new VerticalLayout(dialogEventType,dialogDriver, dialogStartDate, new Divider(), dialogDurationType, dialogTimeSelection,dialogReoccur,dialogReoccurSelection, new Divider(), dialogPublished);
         fieldLayout.setSpacing(false);
         fieldLayout.setPadding(false);
         fieldLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
@@ -509,17 +885,51 @@ public class SchedulerEventDialog {
 
         return fieldLayout;
     }
-    
+
+    private void updateReoccurFields() {
+        dialogReoccurSelection.setVisible(dialogReoccur.getValue());
+        dialogReoccurInterval.setEnabled(dialogReoccur.getValue());
+        dialogReoccurInterval.setVisible(dialogReoccur.getValue());
+        dialogReoccurUntil.setEnabled(dialogReoccur.getValue());
+        dialogReoccurUntil.setVisible(dialogReoccur.getValue());
+        if(dialogReoccur.getValue()){
+            /*
+            String intervalString;
+            if(dialogReoccurInterval.getValue().equals(2)){
+                intervalString = "Reoccur every 2nd ";
+            }else if(dialogReoccurInterval.getValue().equals(3)){
+                intervalString = "Reoccur every 3rd ";
+            }else if(dialogReoccurInterval.getValue().equals(4)){
+                intervalString = "Reoccur every 4th ";
+            }else{
+                intervalString = "Reoccur every ";
+            }
+
+             */
+            dialogReoccur.setLabel(Scheduler.getIntervalString(dialogReoccurInterval.getValue()) + this.event.getStart().toLocalDate().getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.getDefault()));
+        }else{
+            dialogReoccur.setLabel("Reoccurrence (None)");
+        }
+    }
+
     private void updateEventType() {
         //based on the current value of EventType dialog field
         if(dialogEventType.getValue().equals(Scheduler.EventType.SHIFT)){
-            //this.event.setFullDay(false);
             dialogDurationType.setValue(Scheduler.EventDurationType.PARTIALDAY);
             dialogDurationType.setEnabled(false);
+            dialogReoccur.setEnabled(true);
+            dialogReoccur.setReadOnly(false);
         }else{
             //UNAVAILABLE and OFF allow full day
-            //dialogDurationType.setValue(Scheduler.EventDurationType.FULLDAY);
             dialogDurationType.setEnabled(true);
+            if(dialogEventType.getValue().equals(Scheduler.EventType.OFF)){
+                dialogReoccur.setValue(false);
+                dialogReoccur.setEnabled(false);
+                dialogReoccur.setReadOnly(true);
+            }else{
+                dialogReoccur.setEnabled(true);
+                dialogReoccur.setReadOnly(false);
+            }
         }
         dialogValidate();
     }
@@ -554,13 +964,14 @@ public class SchedulerEventDialog {
     }
 
 
-    public void dialogOpen(SchedulerEvent event){
+    public void dialogOpen(SchedulerEvent event, Boolean isOnlyUser, Long signedInDriverId){
+        this.isOnlyUser = isOnlyUser;
+        this.signedInDriverId = signedInDriverId;
         validationEnabled = Boolean.FALSE;
         editType = Scheduler.EditType.DIALOG;
         driver = null;
         if(event==null){ //invalid event
             log.info("dialogOpen: null event passed");
-            //TODO: failed - no event
             return;
         }else{
             this.event = event;
@@ -577,27 +988,114 @@ public class SchedulerEventDialog {
         }
 
         setValues();
-        dialogDriver.setReadOnly(false);
-        dialogEventType.setReadOnly(false);
-        dialogStartDate.setReadOnly(false);
-        dialogDurationType.setReadOnly(false);
-        dialogStartTime.setReadOnly(false);
-        dialogEndTime.setReadOnly(false);
-        dialogPublished.setReadOnly(true);
-        if(dialogMode.equals(DialogMode.NEW)){
-            dialogDeleteButton.setEnabled(false);
-            dialogDeleteButton.setVisible(false);
-            dialog.setHeaderTitle("Create schedule entry");
-        }else { //View/Edit/Delete
-            dialogDeleteButton.setEnabled(true);
-            dialogDeleteButton.setVisible(true);
-            dialog.setHeaderTitle("View/Edit schedule entry");
+
+        //set EventType default
+        setEventTypeList(List.of(Scheduler.EventType.values()));
+
+        if(this.isOnlyUser){
+            //Driver user
+            if(dialogMode.equals(DialogMode.NEW)){
+                setDialogReadOnly(false);
+                dialogDriver.setReadOnly(true);
+                setEventTypeList(listNoShift);
+            }else{
+                if(driver==null){
+                    setDialogReadOnly(true);
+                }else if(driver.getFleetId().equals(signedInDriverId)){
+                    //event for current signed in driver - allow edit for Off and Not Available
+                    if(this.event.getType().equals(Scheduler.EventType.SHIFT)){
+                        //read only
+                        setDialogReadOnly(true);
+                    }else{
+                        //allow create and edit for OFF and NA
+                        setEventTypeList(listNoShift);
+                        setDialogReadOnly(false);
+                    }
+                }else{
+                    //readonly
+                    setDialogReadOnly(true);
+                }
+            }
+        }else{
+            //Admin user - allow new/edit for all
+            setDialogReadOnly(false);
+
+            if(dialogMode.equals(DialogMode.EDIT) && !this.event.getPublished() && this.event.getType().equals(Scheduler.EventType.OFF)){
+                dialogPublishButton.setVisible(true);
+                dialogPublishButton.setEnabled(true);
+            }else{
+                dialogPublishButton.setVisible(false);
+                dialogPublishButton.setEnabled(false);
+            }
         }
+
         validationEnabled = Boolean.TRUE;
 
             //validate
         dialogValidate();
         dialog.open();
+    }
+
+    private void setEventTypeList(List<Scheduler.EventType> list){
+        dialogEventType.setItems(list);
+        if(dialogMode.equals(DialogMode.NEW)){
+            if(isOnlyUser){
+                dialogEventType.setValue(Scheduler.EventType.UNAVAILABLE);
+            }else{
+                dialogEventType.setValue(Scheduler.EventType.SHIFT);
+            }
+        }else{
+            dialogEventType.setValue(event.getType());
+        }
+        updateEventType();
+    }
+
+    private void setDialogReadOnly(Boolean readOnlyMode){
+        dialogDriver.setReadOnly(readOnlyMode);
+        dialogStartDate.setReadOnly(readOnlyMode);
+        dialogDurationType.setReadOnly(readOnlyMode);
+        dialogStartTime.setReadOnly(readOnlyMode);
+        dialogEndTime.setReadOnly(readOnlyMode);
+
+        //always readonly
+        dialogPublished.setReadOnly(true);
+
+        if(dialogMode.equals(DialogMode.NEW)){
+            dialogEventType.setReadOnly(readOnlyMode);
+            dialogDeleteButton.setEnabled(false);
+            dialogDeleteButton.setVisible(false);
+            dialogOkButton.setEnabled(true);
+            dialogOkButton.setVisible(true);
+            dialog.setHeaderTitle("Create schedule entry");
+            dialogReoccur.setReadOnly(readOnlyMode);
+            dialogReoccur.setEnabled(!readOnlyMode);
+            dialogReoccurInterval.setReadOnly(readOnlyMode);
+            dialogReoccurUntil.setReadOnly(readOnlyMode);
+            dialogReoccurUntil.setMin(dialogStartDate.getValue());
+            dialogReoccurUntil.setMax(dialogStartDate.getValue().plusYears(1L));
+        }else { //View/Edit/Delete
+            dialogEventType.setReadOnly(true);
+            if(readOnlyMode){
+                dialogDeleteButton.setEnabled(false);
+                dialogDeleteButton.setVisible(false);
+                dialogOkButton.setEnabled(false);
+                dialogOkButton.setVisible(false);
+            }else{
+                dialogDeleteButton.setEnabled(true);
+                dialogDeleteButton.setVisible(true);
+                dialogOkButton.setEnabled(true);
+                dialogOkButton.setVisible(true);
+            }
+
+            dialog.setHeaderTitle("View/Edit schedule entry");
+
+            //reoccur fields always readonly
+            dialogReoccur.setReadOnly(true);
+            dialogReoccur.setEnabled(false);
+            dialogReoccurInterval.setReadOnly(true);
+            dialogReoccurUntil.setReadOnly(true);
+        }
+
     }
 
     private void setValues(){
@@ -620,6 +1118,18 @@ public class SchedulerEventDialog {
         dialogStartTime.setValue(this.event.getStart().toLocalTime());
         dialogEndTime.setValue(this.event.getEnd().toLocalTime());
         dialogHours.setValue(this.event.getHours());
+
+        if(this.event.getEventGroup()==null){
+            dialogReoccur.setValue(Boolean.FALSE);
+            dialogReoccurInterval.setValue(1);
+            dialogReoccurUntil.setValue(dialogStartDate.getValue().plusYears(1L));
+        }else{
+            dialogReoccur.setValue(Boolean.TRUE);
+            dialogReoccurInterval.setValue(event.getEventGroup().getReoccurInterval());
+            dialogReoccurUntil.setValue(event.getEventGroup().getReoccurUntil());
+        }
+        updateReoccurFields();
+
         dialogPublished.setValue(this.event.getPublished());
     }
 
@@ -641,19 +1151,29 @@ public class SchedulerEventDialog {
                 validateRadioButtonGroup(dialogDurationType,durationType.toString());
                 validateTimeField(dialogStartTime, event.getStart().toLocalTime());
                 validateTimeField(dialogEndTime, event.getEnd().toLocalTime());
+                if(dialogReoccur.getValue()){
+                    validateIntegerField(dialogReoccurInterval, event.getEventGroup().getReoccurInterval());
+                    validateDateField(dialogReoccurUntil, event.getEventGroup().getReoccurUntil());
+                }
             }
         }
         log.info("dialogValidate: hasChangedValues:" + hasChangedValues);
         if(hasChangedValues){
             enableOkReset(true);
-            //dialogOkButton.setEnabled(true);
-            //dialogResetButton.setEnabled(true);
         }else{
             enableOkReset(false);
-            //dialogOkButton.setEnabled(false);
-            //dialogResetButton.setEnabled(false);
         }
 
+    }
+
+    private void validateIntegerField(IntegerField field, Integer value){
+        if(field.getValue().equals(value)){
+            field.getStyle().set("box-shadow","none");
+        }else{
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
+            hasChangedValues = Boolean.TRUE;
+        }
     }
 
     private void validateTimeField(TimePicker field, LocalTime value){
@@ -699,7 +1219,7 @@ public class SchedulerEventDialog {
     }
 
     private void validateRadioButtonGroup(RadioButtonGroup field, String value){
-        //log.info("validateRadioButtonGroup: field toString:" + field.getValue().toString() + " value:" + value);
+        log.info("validateRadioButtonGroup: field toString:" + field.getValue() + " value:" + value);
         if(field.getValue().toString().equals(value)){
             field.getStyle().set("box-shadow","none");
         }else{
@@ -716,7 +1236,7 @@ public class SchedulerEventDialog {
             field = dialogDriver.getValue().getFleetId().toString();
         }
         log.info("validateDriver: field:" + field + " value:" + value);
-        if(value==null && field==null){
+        if((value==null && field==null) || (value.equals("0") && field==null)){
             dialogDriver.getStyle().set("box-shadow","none");
         }else if(value==null && field!=null || value!=null && field==null){
             dialogDriver.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
