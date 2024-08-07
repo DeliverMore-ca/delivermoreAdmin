@@ -9,14 +9,18 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SchedulerEventRepository extends JpaRepository<SchedulerEvent, Long> {
-    @Query("select s from SchedulerEvent s where s.start between ?1 and ?2")
-    List<SchedulerEvent> findByStartBetween(LocalDateTime startStart, LocalDateTime startEnd);
+    @Query("select s from SchedulerEvent s where s.start between ?1 and ?2 and s.teamId = ?3")
+    List<SchedulerEvent> findByStartBetween(LocalDateTime startStart, LocalDateTime startEnd, Long teamId);
 
-    @Query("select s from SchedulerEvent s where s.start between ?2 and ?3 and s.resourceId = ?1")
-    List<SchedulerEvent> findByResourceIdAndStartBetween(String resourceId, LocalDateTime startStart, LocalDateTime startEnd);
+    @Query("select s from SchedulerEvent s where s.start between ?2 and ?3 and s.resourceId = ?1 and s.teamId = ?4")
+    List<SchedulerEvent> findByResourceIdAndStartBetween(String resourceId, LocalDateTime startStart, LocalDateTime startEnd, Long teamId);
 
-    @Query("select s from SchedulerEvent s where s.published = ?1 and s.start between ?2 and ?3 order by s.start, s.end")
-    List<SchedulerEvent> findByPublishedAndStartBetween(Boolean published, LocalDateTime startStart, LocalDateTime startEnd);
+    @Query("select s from SchedulerEvent s where s.published = ?1 and s.start between ?2 and ?3 and s.teamId = ?4 order by s.start, s.end")
+    List<SchedulerEvent> findByPublishedAndStartBetween(Boolean published, LocalDateTime startStart, LocalDateTime startEnd, Long teamId);
+
+    @Query("select s from SchedulerEvent s where s.teamId = ?1 order by s.start, s.end")
+    List<SchedulerEvent> findByTeamIdOrderByStartAscEndAsc(Long teamId);
+
 
     List<SchedulerEvent> findByEventGroup_IdAndStartGreaterThanEqual(Long id, LocalDateTime start);
 

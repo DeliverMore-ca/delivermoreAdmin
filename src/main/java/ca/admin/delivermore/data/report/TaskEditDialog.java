@@ -588,7 +588,7 @@ public class TaskEditDialog {
         columnInfo.setPadding(false);
         columnInfo.setSpacing(false);
 
-        Span taskDateTime = new Span(item.getCreationDate().format(DateTimeFormatter.ofPattern("MM/dd h:mm a")));
+        Span taskDateTime = new Span(item.getCompletedDate().format(DateTimeFormatter.ofPattern("MM/dd h:mm a")));
         taskDateTime.getStyle()
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)");
@@ -621,7 +621,7 @@ public class TaskEditDialog {
             columnInfo.add(customerAddress);
         }
 
-        Span ids = new Span(formatIds(item.getJobId().toString(), item.getOrderId()));
+        Span ids = new Span(formatIds(item.getJobId().toString(), item.getOrderId(), item.getRefNumber()));
         ids.getStyle()
                 .set("color", "var(--lumo-tertiary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)");
@@ -652,10 +652,13 @@ public class TaskEditDialog {
         else return 2;
     }
 
-    private String formatIds(String jobId, String orderId){
+    private String formatIds(String jobId, String orderId, String refNumber){
         String idString = "Jobid:" + jobId ;
         if(orderId!=null && !orderId.isEmpty()){
             idString = idString + " Orderid:" + orderId.trim();
+        }
+        if(refNumber!=null && !refNumber.isEmpty()){
+            idString = idString + " Ref:" + refNumber.trim();
         }
         return idString;
     }

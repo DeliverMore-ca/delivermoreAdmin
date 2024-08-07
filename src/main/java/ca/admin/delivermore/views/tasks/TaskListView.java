@@ -293,7 +293,7 @@ public class TaskListView extends Main implements TaskListRefreshNeededListener 
         exporter.createExportColumn(grid.addColumn(TaskEntity::getOrderId),false,"OrderId");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getTaskTypeName),false,"Type");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getJobStatusName),false,"Status");
-        exporter.createExportColumn(grid.addColumn(item -> DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm").format(item.getCreationDate())),false,"Created");
+        exporter.createExportColumn(grid.addColumn(item -> DateTimeFormatter.ofPattern("YYYY-MM-dd HH:mm").format(item.getCompletedDate())),false,"Completed");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getRestaurantName),false,"Restaurant");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getCustomerUsername),false,"Customer");
         exporter.createExportColumn(grid.addColumn(TaskEntity::getCustomerPhone),false,"CustomerPhone");

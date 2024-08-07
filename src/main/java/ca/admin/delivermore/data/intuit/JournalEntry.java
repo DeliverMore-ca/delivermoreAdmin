@@ -16,10 +16,7 @@ import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.intuit.controller.QBOController;
 import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVWriter;
@@ -27,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonPropertyOrder({
     "Adjustment",
     "TotalAmt",

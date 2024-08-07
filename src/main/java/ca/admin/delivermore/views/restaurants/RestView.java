@@ -1,10 +1,16 @@
 package ca.admin.delivermore.views.restaurants;
 
+import ca.admin.delivermore.collector.data.Config;
 import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.collector.data.entity.Restaurant;
 import ca.admin.delivermore.collector.data.service.RestaurantRepository;
 import ca.admin.delivermore.collector.data.tookan.Driver;
+import ca.admin.delivermore.collector.data.tookan.Team;
 import ca.admin.delivermore.components.custom.ListEditor;
+import ca.admin.delivermore.components.custom.LocationChoice;
+import ca.admin.delivermore.components.custom.LocationChoiceChangedListener;
+import ca.admin.delivermore.data.scheduler.Scheduler;
+import ca.admin.delivermore.data.scheduler.SchedulerEvent;
 import ca.admin.delivermore.data.scheduler.SchedulerEventDialog;
 import ca.admin.delivermore.views.MainLayout;
 import ca.admin.delivermore.views.UIUtilities;
@@ -15,6 +21,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datepicker.DatePickerVariant;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -26,10 +33,13 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.listbox.ListBox;
+import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.select.SelectVariant;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -52,7 +62,7 @@ import java.time.temporal.TemporalAdjusters;
 @Route(value = "restaurants", layout = MainLayout.class)
 @RolesAllowed("ADMIN")
 @JsModule("@vaadin/vaadin-lumo-styles/presets/compact.js")
-public class RestView extends VerticalLayout {
+public class RestView extends VerticalLayout implements LocationChoiceChangedListener {
 
     enum DialogMode{
         NEW, EDIT, NEW_CLONE, DELETE
@@ -89,12 +99,21 @@ public class RestView extends VerticalLayout {
     private Checkbox dialogRestPOSPhonein = new Checkbox();
 
     private Checkbox dialogRestActiveForPayout = new Checkbox();
+    private Checkbox dialogRestInvoicedVendor = new Checkbox();
     private Checkbox dialogRestProcessOrderText = new Checkbox();
 
     private TextField dialogRestGlobalAuthCode = UIUtilities.getTextField("Global Code");
     private IntegerField dialogRestFormId = UIUtilities.getIntegerField("Form Id",false,0);
 
+    private Select<Team> dialogRestLocation = new Select<>();
+
     private ListEditor dialogRestEmailEditor = new ListEditor();
+
+    private Dialog newRestDialog = new Dialog();
+    private IntegerField newRestDialogId = new IntegerField("Restaurant Id");
+    private TextField newRestDialogName = new TextField("Restaurant Name");
+    private DatePicker newRestDialogEffectiveDate = new DatePicker("Effective Date");
+    private Button newRestDialogOkButton = new Button("OK");
     private Boolean validationEnabled = Boolean.FALSE;
     private Boolean hasChangedValues = Boolean.FALSE;
     private Boolean hasChangedValuesEmail = Boolean.FALSE;
@@ -106,6 +125,8 @@ public class RestView extends VerticalLayout {
 
     private DatePicker datePicker = new DatePicker(LocalDate.now());
 
+    private LocationChoice locationChoice = new LocationChoice(true);
+
     RestaurantRepository restaurantRepository;
 
     private Logger log = LoggerFactory.getLogger(RestView.class);
@@ -114,6 +135,7 @@ public class RestView extends VerticalLayout {
         this.restaurantRepository = restaurantRepository;
         log.info("Configuring the dialog");
         dialogConfigure();
+        configureNewRestDialog();
 
         grid.removeAllColumns();
         grid.addComponentColumn(item -> {
@@ -128,10 +150,25 @@ public class RestView extends VerticalLayout {
             });
             return editIcon;
         }).setWidth("50px").setFlexGrow(0).setFrozen(true);
+
+        grid.addComponentColumn(item -> {
+            Icon detailsDeleteIcon = new Icon("lumo", "cross");
+            detailsDeleteIcon.setTooltipText("Delete restaurant entry");
+            detailsDeleteIcon.setColor("red");
+            detailsDeleteIcon.addClickListener(e -> {
+                //confirm delete
+                confirmDeleteRest(item);
+            });
+            return detailsDeleteIcon;
+        }).setWidth("50px").setFlexGrow(0);
+
         grid.addColumn(Restaurant::getName)
                 .setFlexGrow(0)
                 .setHeader("Name").setFrozen(true);
         grid.addColumn(Restaurant::getRestaurantId).setHeader("Id");
+        grid.addColumn(item -> {
+            return locationChoice.getLocationNameById(item.getTeamId());
+        }).setHeader("Location");
         grid.addColumn(item -> {
             return getCommissionFormatted(item.getCommissionRate());
         }).setHeader("Commission").setTextAlign(ColumnTextAlign.END);
@@ -155,6 +192,7 @@ public class RestView extends VerticalLayout {
         grid.addComponentColumn(restaurant -> createCheckIcon(restaurant.getPosGlobal())).setWidth(statusWidth).setComparator(Restaurant::getPosGlobal).setHeader("POS Global");
         grid.addComponentColumn(restaurant -> createCheckIcon(restaurant.getPosPhonein())).setWidth(statusWidth).setComparator(Restaurant::getPosPhonein).setHeader("POS Other");
         grid.addComponentColumn(restaurant -> createCheckIcon(restaurant.getActiveForPayout())).setWidth(statusWidth).setComparator(Restaurant::getActiveForPayout).setHeader("Active for payout");
+        grid.addComponentColumn(restaurant -> createCheckIcon(restaurant.getUseInvoiceProcessing())).setWidth(statusWidth).setComparator(Restaurant::getUseInvoiceProcessing).setHeader("Invoiced Vendor");
         grid.addComponentColumn(restaurant -> createCheckIcon(restaurant.getProcessOrderText())).setWidth(statusWidth).setComparator(Restaurant::getProcessOrderText).setHeader("Add order details");
         grid.addColumn(Restaurant::getGlobalAuthCode).setHeader("Global Code");
         grid.addColumn(Restaurant::getFormId).setHeader("Form Id");
@@ -169,8 +207,25 @@ public class RestView extends VerticalLayout {
         configureDatePicker();
         add(getToolbar());
         add(grid);
-        grid.setItems(restaurantRepository.getEffectiveRestaurantsForPayout(LocalDate.now()));
+        locationChoice.addListener(this);
+        grid.setItems(restaurantRepository.getEffectiveRestaurants(LocalDate.now()));
 
+    }
+
+    private void confirmDeleteRest(Restaurant item) {
+
+        ConfirmDialog confirmRestDeleteDialog = new ConfirmDialog();
+        confirmRestDeleteDialog.setHeader("Delete Restaurant Entry?");
+        confirmRestDeleteDialog.setCancelable(true);
+        confirmRestDeleteDialog.setConfirmText("Delete");
+        confirmRestDeleteDialog.setConfirmButtonTheme("error primary");
+        confirmRestDeleteDialog.setText(
+                "Delete restaurant: '" + item.getName() + "' with effective date: " + item.getDateEffective() + "?");
+        confirmRestDeleteDialog.addConfirmListener(event -> {
+            restaurantRepository.delete(item);
+            refreshGrid();
+        });
+        confirmRestDeleteDialog.open();
     }
 
     private Icon createCheckIcon(Boolean checked) {
@@ -261,9 +316,121 @@ public class RestView extends VerticalLayout {
         refreshButton.addClickListener(e -> {
             refreshGrid();
         });
-        toolbar.add(refreshButton);
-        //TODO: need ability to ADD NEW Restaurant and Delete a restaurant record (do I then set the previous record expiry to NULL)
+
+        Icon addIcon = new Icon(VaadinIcon.PLUS);
+        //addIcon.setSize("20px");
+        addIcon.setColor("green");
+        addIcon.setTooltipText("Add new entry");
+        addIcon.addClickListener(item -> {
+            createNewRest();
+        });
+        MenuBar addItemMB = new MenuBar();
+        addItemMB.addItem(addIcon);
+
+
+        toolbar.add(refreshButton,addItemMB,locationChoice.getMenuBar());
         return toolbar;
+    }
+
+    private void configureNewRestDialog(){
+        newRestDialog.setHeaderTitle("Add new Restaurant");
+        newRestDialog.setCloseOnEsc(true);
+
+        Button newRestDialogCloseButton = new Button(new Icon("lumo", "cross"));;
+        newRestDialogCloseButton.addClickListener((e) -> newRestDialog.close());
+        newRestDialogCloseButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        newRestDialog.getHeader().add(newRestDialogCloseButton);
+
+        Button newRestDialogCancelButton = new Button("Cancel");
+        newRestDialogCancelButton.addClickListener((e) -> newRestDialog.close());
+
+        newRestDialogOkButton.setIcon(okIcon);
+        newRestDialogOkButton.setText("Create");
+        //newRestDialogOkButton.setAutofocus(true);
+        newRestDialogOkButton.addClickListener(
+                event -> {
+                    //save new and load for edit
+                    newRestDialog.close();
+                    Long restId = Long.valueOf(newRestDialogId.getValue());
+                    Restaurant newRest = new Restaurant(restId,newRestDialogName.getValue(),newRestDialogEffectiveDate.getValue());
+                    //Set default values
+                    if(locationChoice.isAllLocationsSelected()){
+                        newRest.setTeamId(locationChoice.getLocations().get(0).getTeamId());
+                    }else{
+                        newRest.setTeamId(locationChoice.getSelectedLocationId());
+                    }
+                    newRest.setCommissionRate(0.15);
+                    newRest.setCommissionRatePhonein(0.15);
+                    newRest.setCommissionPerPhonein(0.0);
+                    newRest.setCommissionPerDelivery(0.0);
+                    newRest.setActiveForPayout(true);
+                    dialogTabSheet.setSelectedTab(dialogTabOther);
+                    dialogMode = DialogMode.NEW;
+                    dialogOpen(newRest);
+                }
+        );
+        newRestDialogOkButton.addClickShortcut(Key.ENTER);
+        newRestDialogOkButton.setEnabled(false);
+        newRestDialogOkButton.setDisableOnClick(true);
+
+        HorizontalLayout footerLayout = new HorizontalLayout(newRestDialogOkButton, newRestDialogCancelButton);
+        newRestDialog.getFooter().add(footerLayout);
+
+        VerticalLayout bodyLayout = new VerticalLayout(newRestDialogId,newRestDialogName,newRestDialogEffectiveDate);
+        newRestDialogId.addValueChangeListener(e -> {
+            newRestDialogValidate();
+        });
+        newRestDialogName.addValueChangeListener(e -> {
+            newRestDialogValidate();
+        });
+        newRestDialogEffectiveDate.addValueChangeListener(e -> {
+            if(e.getValue()==null) newRestDialogEffectiveDate.setValue(e.getOldValue());
+            newRestDialogValidate();
+        });
+        newRestDialog.add(bodyLayout);
+
+    }
+
+    private void createNewRest() {
+        newRestEnableOk(false);
+        newRestDialogId.clear();
+        newRestDialogName.clear();
+
+        LocalDate nowDate = LocalDate.now();
+        LocalDate prevSun = nowDate.with(TemporalAdjusters.previous(DayOfWeek.SUNDAY));
+        prevSun = nowDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
+
+        newRestDialogEffectiveDate.setValue(prevSun);
+        newRestDialog.open();
+        //newRestDialogEffectiveDate.getElement().executeJs("this.inputElement.value = ''");
+        newRestDialogId.setAutofocus(true);
+
+    }
+
+    private void newRestDialogValidate() {
+        if(newRestDialogId.isEmpty() || newRestDialogId.getValue().equals(0)){
+            newRestEnableOk(false);
+        }else{
+            if(newRestDialogName.isEmpty()){
+                newRestEnableOk(false);
+            }else{
+                if(newRestDialogEffectiveDate.getValue()==null){
+                    newRestEnableOk(false);
+                }else{
+                    newRestEnableOk(true);
+                }
+            }
+        }
+
+    }
+
+    private void newRestEnableOk(Boolean enable){
+        newRestDialogOkButton.setEnabled(enable);
+        if(enable){
+            okIcon.setColor("green");
+         }else{
+            okIcon.setColor(UIUtilities.iconColorNotHighlighted);
+        }
     }
 
     private void configureDatePicker(){
@@ -274,7 +441,12 @@ public class RestView extends VerticalLayout {
     }
 
     private void refreshGrid() {
-        grid.setItems(restaurantRepository.getEffectiveRestaurantsForPayout(datePicker.getValue()));
+        //TODO: filter by locationChoice
+        if(locationChoice.isAllLocationsSelected()){
+            grid.setItems(restaurantRepository.getEffectiveRestaurants(datePicker.getValue()));
+        }else{
+            grid.setItems(restaurantRepository.getEffectiveRestaurantsForTeam(locationChoice.getSelectedLocationId(), datePicker.getValue()));
+        }
         grid.getDataProvider().refreshAll();
     }
 
@@ -342,9 +514,9 @@ public class RestView extends VerticalLayout {
     }
 
     private VerticalLayout dialogLayout() {
-        dialogRestName.setReadOnly(true);
+        dialogRestName.setReadOnly(false);
         dialogRestName.addThemeVariants(TextFieldVariant.LUMO_SMALL);
-        dialogRestEffectiveDate.setReadOnly(true);
+        dialogRestEffectiveDate.setReadOnly(false);
         //dialogRestEffectiveDate.setEnabled(false);
         dialogRestEffectiveDate.addThemeVariants(DatePickerVariant.LUMO_SMALL);
         dialogRestEffectiveDate.setWidth("150px");
@@ -354,7 +526,7 @@ public class RestView extends VerticalLayout {
                 dialogValidate();
             }
         });
-        dialogRestExpiryDate.setReadOnly(true);
+        dialogRestExpiryDate.setReadOnly(false);
         dialogRestExpiryDate.addThemeVariants(TextFieldVariant.LUMO_SMALL);
         dialogRestExpiryDate.setWidth("150px");
         HorizontalLayout dateFieldsLayout = UIUtilities.getHorizontalLayout();
@@ -364,6 +536,18 @@ public class RestView extends VerticalLayout {
         dialogRestEmailEditor.getValueField().addValueChangeListener(e -> {
             if(validationEnabled) dialogValidate();
         });
+
+        dialogRestLocation.setLabel("Location");
+        dialogRestLocation.setPlaceholder("Select Location");
+        dialogRestLocation.setReadOnly(false);
+        dialogRestLocation.addThemeVariants(SelectVariant.LUMO_SMALL);
+        dialogRestLocation.setItems(locationChoice.getLocations());
+        dialogRestLocation.setItemLabelGenerator(Team::getTeamName);
+        dialogRestLocation.addValueChangeListener(e ->{
+            if(validationEnabled) dialogValidate();
+        });
+        HorizontalLayout locationFieldsLayout = UIUtilities.getHorizontalLayout(false,true,false);
+        locationFieldsLayout.add(dialogRestLocation);
 
         String halfFieldWidth = "130px";
         dialogRestCommission.setReadOnly(false);
@@ -432,14 +616,23 @@ public class RestView extends VerticalLayout {
         dialogRestActiveForPayout.addValueChangeListener(e -> {
             if(validationEnabled) dialogValidate();
         });
+        dialogRestInvoicedVendor.setLabel("Invoiced Vendor");
+        dialogRestInvoicedVendor.setReadOnly(false);
+        dialogRestInvoicedVendor.setWidth(halfFieldWidth);
+        dialogRestInvoicedVendor.addValueChangeListener(e -> {
+            if(validationEnabled) dialogValidate();
+        });
+        HorizontalLayout fieldsLayout5a = UIUtilities.getHorizontalLayout(false,true,false);
+        fieldsLayout5a.add(dialogRestActiveForPayout,dialogRestInvoicedVendor);
+
         dialogRestProcessOrderText.setLabel("Add order details");
         dialogRestProcessOrderText.setReadOnly(false);
         dialogRestProcessOrderText.setWidth(halfFieldWidth);
         dialogRestProcessOrderText.addValueChangeListener(e -> {
             if(validationEnabled) dialogValidate();
         });
-        HorizontalLayout fieldsLayout5 = UIUtilities.getHorizontalLayout(false,true,false);
-        fieldsLayout5.add(dialogRestActiveForPayout,dialogRestProcessOrderText);
+        HorizontalLayout fieldsLayout5b = UIUtilities.getHorizontalLayout(false,true,false);
+        fieldsLayout5b.add(dialogRestProcessOrderText);
 
         dialogRestGlobalAuthCode.setReadOnly(false);
         dialogRestGlobalAuthCode.addThemeVariants(TextFieldVariant.LUMO_SMALL);
@@ -457,7 +650,7 @@ public class RestView extends VerticalLayout {
         fieldsLayout6.add(dialogRestGlobalAuthCode,dialogRestFormId);
 
         VerticalLayout otherFieldsLayout = UIUtilities.getVerticalLayout();
-        otherFieldsLayout.add(commissionFieldsLayout,commissionPerFieldsLayout,fieldsLayout3,fieldsLayout4,fieldsLayout5,fieldsLayout6);
+        otherFieldsLayout.add(locationFieldsLayout,commissionFieldsLayout,commissionPerFieldsLayout,fieldsLayout3,fieldsLayout4,fieldsLayout5a,fieldsLayout5b,fieldsLayout6);
         dialogTabEmail = new Tab(tabEmailIcon, new Span("Email"));
         dialogTabOther = new Tab(tabOtherIcon, new Span("Other"));
         dialogTabSheet.add(dialogTabEmail, dialogRestEmailEditor);
@@ -481,7 +674,7 @@ public class RestView extends VerticalLayout {
             dialogRestEffectiveDate.setRequired(true);
             dialogRestEffectiveDate.setMin(originalRestaurantThatWasCloned.getDateEffective().plusDays(1));
         }else{
-            dialogRestEffectiveDate.setReadOnly(true);
+            dialogRestEffectiveDate.setReadOnly(false);
             dialogRestEffectiveDate.setRequired(false);
             dialogRestEffectiveDate.setMin(selectedRestaurant.getDateEffective());
         }
@@ -501,6 +694,12 @@ public class RestView extends VerticalLayout {
         }else{
             dialogRestExpiryDate.setValue(selectedRestaurant.getDateExpired().toString());
         }
+        if(selectedRestaurant.getTeamId()==null){
+            dialogRestLocation.setValue(null);
+        }else{
+            dialogRestLocation.setValue(locationChoice.getLocationTeamById(selectedRestaurant.getTeamId()));
+        }
+
         if(selectedRestaurant.getCommissionRate()==null || selectedRestaurant.getCommissionRate().equals(0.0)){
             dialogRestCommission.setValue(0);
         }else{
@@ -531,6 +730,11 @@ public class RestView extends VerticalLayout {
         dialogRestPOSGlobal.setValue(selectedRestaurant.getPosGlobal());
         dialogRestPOSPhonein.setValue(selectedRestaurant.getPosPhonein());
         dialogRestActiveForPayout.setValue(selectedRestaurant.getActiveForPayout());
+        if(selectedRestaurant.getUseInvoiceProcessing()==null){
+            dialogRestProcessOrderText.setValue(Boolean.FALSE);
+        }else{
+            dialogRestProcessOrderText.setValue(selectedRestaurant.getUseInvoiceProcessing());
+        }
         if(selectedRestaurant.getProcessOrderText()==null){
             dialogRestProcessOrderText.setValue(Boolean.FALSE);
         }else{
@@ -552,7 +756,7 @@ public class RestView extends VerticalLayout {
 
     private void dialogValidate() {
         if(validationEnabled && selectedRestaurant!=null){
-            if(dialogMode.equals(SchedulerEventDialog.DialogMode.NEW)){
+            if(dialogMode.equals(DialogMode.NEW)){
                 hasChangedValues = Boolean.TRUE;
                 hasChangedValuesEmail = Boolean.TRUE;
                 hasChangedValuesOther = Boolean.TRUE;
@@ -565,6 +769,7 @@ public class RestView extends VerticalLayout {
                     //validate effective date
                     validateDatePicker(dialogRestEffectiveDate, selectedRestaurant.getDateEffective());
                 }
+                validateTeam(dialogRestLocation,locationChoice.getLocationTeamById(selectedRestaurant.getTeamId()));
                 validateIntegerField(dialogRestCommission, getDoubleAsInteger(selectedRestaurant.getCommissionRate()));
                 validateIntegerField(dialogRestCommissionPhonein, getDoubleAsInteger(selectedRestaurant.getCommissionRatePhonein()));
                 validateField(dialogRestCommPerDelivery,selectedRestaurant.getCommissionPerDelivery());
@@ -574,6 +779,7 @@ public class RestView extends VerticalLayout {
                 validateCheckbox(dialogRestPOSGlobal,selectedRestaurant.getPosGlobal());
                 validateCheckbox(dialogRestPOSPhonein,selectedRestaurant.getPosPhonein());
                 validateCheckbox(dialogRestActiveForPayout,selectedRestaurant.getActiveForPayout());
+                validateCheckbox(dialogRestInvoicedVendor,selectedRestaurant.getUseInvoiceProcessing());
                 validateCheckbox(dialogRestProcessOrderText,selectedRestaurant.getProcessOrderText());
                 validateTextField(dialogRestGlobalAuthCode, selectedRestaurant.getGlobalAuthCode());
                 validateIntegerField(dialogRestFormId, Math.toIntExact(selectedRestaurant.getFormId()));
@@ -610,6 +816,20 @@ public class RestView extends VerticalLayout {
             hasChangedValues = Boolean.TRUE;
             hasChangedValuesOther = Boolean.TRUE;
         }else if(field.getValue().equals(value)){
+            field.getStyle().set("box-shadow","none");
+        }else{
+            field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
+            field.getStyle().set("border-radius",UIUtilities.boxShadowStyleRadius);
+            hasChangedValues = Boolean.TRUE;
+            hasChangedValuesOther = Boolean.TRUE;
+        }
+    }
+
+    private void validateTeam(Select<Team> field, Team value){
+        log.info("validateTeam: value:" + value + " field value:" + field.getValue());
+        log.info("validateTeam: notFound:" + (locationChoice.isTeamNotFound(value)) );
+        log.info("validateTeam: field id:" + field.getValue() + " value id:" + value.getTeamId());
+        if((field.getValue()==null)||(locationChoice.isTeamNotFound(field.getValue()))||(field.getValue().getTeamId().equals(value.getTeamId()))){
             field.getStyle().set("box-shadow","none");
         }else{
             field.getStyle().set("box-shadow",UIUtilities.boxShadowStyle);
@@ -675,6 +895,12 @@ public class RestView extends VerticalLayout {
 
     private void dialogSave() {
         log.info("dialogSave: called for:" + selectedRestaurant.toString());
+        if(dialogRestLocation.getValue()==null){
+            selectedRestaurant.setTeamId(null);
+        }else{
+            selectedRestaurant.setTeamId(dialogRestLocation.getValue().getTeamId());
+        }
+
         if(dialogRestCommission.getValue()==null || dialogRestCommission.getValue().equals(0)){
             selectedRestaurant.setCommissionRate(0.0);
         }else{
@@ -708,6 +934,7 @@ public class RestView extends VerticalLayout {
         selectedRestaurant.setPosGlobal(dialogRestPOSGlobal.getValue());
         selectedRestaurant.setPosPhonein(dialogRestPOSPhonein.getValue());
         selectedRestaurant.setActiveForPayout(dialogRestActiveForPayout.getValue());
+        selectedRestaurant.setUseInvoiceProcessing(dialogRestInvoicedVendor.getValue());
         selectedRestaurant.setProcessOrderText(dialogRestProcessOrderText.getValue());
         if(dialogRestGlobalAuthCode.getValue()==null){
             selectedRestaurant.setGlobalAuthCode("");
@@ -723,9 +950,6 @@ public class RestView extends VerticalLayout {
 
         selectedRestaurant.setEmail(dialogRestEmailEditor.getValue());
 
-        restaurantRepository.save(selectedRestaurant);
-        UIUtilities.showNotification("Updated");
-
         if(dialogMode.equals(DialogMode.NEW_CLONE)){
             selectedRestaurant.setDateEffective(dialogRestEffectiveDate.getValue());
             originalRestaurantThatWasCloned.setDateExpired(selectedRestaurant.getDateEffective().minusDays(1));
@@ -733,6 +957,9 @@ public class RestView extends VerticalLayout {
             log.info("dialogSave: original:" + originalRestaurantThatWasCloned);
             restaurantRepository.save(originalRestaurantThatWasCloned);
         }
+
+        restaurantRepository.save(selectedRestaurant);
+        UIUtilities.showNotification("Updated");
 
         //refresh
         refreshGrid();
@@ -751,6 +978,11 @@ public class RestView extends VerticalLayout {
         if(value==null) return newDouble;
         newDouble = value * 0.01;
         return newDouble;
+    }
+
+    @Override
+    public void locationChanged() {
+        refreshGrid();
     }
 
 }

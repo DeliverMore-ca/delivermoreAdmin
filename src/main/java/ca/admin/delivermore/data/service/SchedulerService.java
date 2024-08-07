@@ -39,14 +39,14 @@ public class SchedulerService {
         schedulerEventRepository = Registry.getBean(SchedulerEventRepository.class);
     }
 
-    private void loadFromDatabase(LocalDate startDate, LocalDate endDate){
+    private void loadFromDatabase(LocalDate startDate, LocalDate endDate, Long teamId){
         //load entries from database
         //log.info("loadFromDatabase: start:" + startDate + " end:" + endDate);
         List<SchedulerEvent> schedulerEvents;
         if(startDate!=null && endDate!=null){
-            schedulerEvents = schedulerEventRepository.findByStartBetween(startDate.atStartOfDay(),endDate.atTime(23,59));
+            schedulerEvents = schedulerEventRepository.findByStartBetween(startDate.atStartOfDay(),endDate.atTime(23,59),teamId);
         }else{
-            schedulerEvents = schedulerEventRepository.findAll();
+            schedulerEvents = schedulerEventRepository.findByTeamIdOrderByStartAscEndAsc(teamId);
         }
 
         entriesMap.clear();
@@ -65,7 +65,7 @@ public class SchedulerService {
         //log.info("loadFromDatabase: count:" + entriesMap.values().size());
     }
 
-    public void buildSchedulerResources(FullCalendarScheduler scheduler, LocalDate startDate, LocalDate endDate){
+    public void buildSchedulerResources(FullCalendarScheduler scheduler, LocalDate startDate, LocalDate endDate, Long teamID){
         //log.info("buildSchedulerResources");
         //NOTE: the endDate is INCLUSIVE so it is actually the day PAST the last day of the week
         resourceMap.clear();
@@ -73,9 +73,10 @@ public class SchedulerService {
 
         List<Driver> driverList = new ArrayList<>();
         if(includeAllDrivers){
-            driverList = driversRepository.findAll();
+            //find all by team id
+            driverList = driversRepository.findByTeamIdOrderByIsActiveNameAsc(teamID);
         }else{
-            driverList = driversRepository.findActiveOrderByNameAsc();
+            driverList = driversRepository.findActiveByTeamOrderByNameAsc(teamID);
         }
 
         for (Driver driver: driverList) {
@@ -91,7 +92,7 @@ public class SchedulerService {
             String driverName = driver.getName();
             //log.info("buildSchedulerResources: for driver " + driverName + " fleetId:" + driver.getFleetId() + " start:" + startDate + " end:" + endDate);
             if(endDate!=null){
-                List<SchedulerEvent> resourceEvents = schedulerEventRepository.findByResourceIdAndStartBetween(driver.getFleetId().toString(),startDate.atStartOfDay(),endDate.atStartOfDay());
+                List<SchedulerEvent> resourceEvents = schedulerEventRepository.findByResourceIdAndStartBetween(driver.getFleetId().toString(),startDate.atStartOfDay(),endDate.atStartOfDay(), teamID);
                 if(resourceEvents==null || resourceEvents.size()==0){
                     //log.info("buildSchedulerResources: resourceEvents was null or size was 0 - no hours for driver " + driverName);
                 }else{
@@ -159,10 +160,10 @@ public class SchedulerService {
         resourceMap.put(id, new SchedulerResource(id,group,title, displayResource));
     }
 
-    public void refresh(FullCalendarScheduler scheduler, LocalDate startDate, LocalDate endDate){
-        buildSchedulerResources(scheduler,startDate,endDate);
+    public void refresh(FullCalendarScheduler scheduler, LocalDate startDate, LocalDate endDate, Long teamId){
+        buildSchedulerResources(scheduler,startDate,endDate, teamId);
         //read list from database
-        loadFromDatabase(startDate,endDate);
+        loadFromDatabase(startDate,endDate, teamId);
         InMemoryEntryProvider<ResourceEntry> entryProvider2 = EntryProvider.inMemoryFrom(entriesMap.values().stream().collect(Collectors.toList()));
         scheduler.setEntryProvider(entryProvider2);
         entryProvider2.refreshAll();
@@ -212,8 +213,8 @@ public class SchedulerService {
         return entriesMap;
     }
 
-    public List<SchedulerEvent> getUnpublishedEntries(LocalDate start, LocalDate end){
-        return schedulerEventRepository.findByPublishedAndStartBetween(false,start.atStartOfDay(), end.atTime(23,59));
+    public List<SchedulerEvent> getUnpublishedEntries(LocalDate start, LocalDate end, Long teamId){
+        return schedulerEventRepository.findByPublishedAndStartBetween(false,start.atStartOfDay(), end.atTime(23,59), teamId);
     }
 
     public void saveEntry(SchedulerEvent schedulerEvent){

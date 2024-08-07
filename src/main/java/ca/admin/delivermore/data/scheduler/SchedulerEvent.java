@@ -14,6 +14,7 @@ import org.vaadin.stefan.fullcalendar.*;
 import javax.persistence.*;
 import javax.validation.constraints.NotNull;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -57,6 +58,9 @@ public class SchedulerEvent {
     @NotNull
     private Boolean fullDay = false;
 
+    @NotNull
+    private Long teamId = 1335347L;
+
     @Transient
     private String description = "";
 
@@ -75,13 +79,18 @@ public class SchedulerEvent {
     public SchedulerEvent() {
     }
 
-    public SchedulerEvent(Scheduler.EventType type, LocalDateTime start, LocalDateTime end, String resourceId, Boolean fullDay, Boolean published) {
+    public SchedulerEvent(Scheduler.EventType type, LocalDateTime start, LocalDateTime end, String resourceId, Boolean fullDay, Boolean published, Long teamId) {
         this.type = type;
         this.start = start;
         this.end = end;
         this.resourceId = resourceId;
         this.fullDay = fullDay;
         this.published = published;
+        if(teamId==null){
+            this.teamId = 1335347L; //default to strathmore for older entries
+        }else{
+            this.teamId = teamId;
+        }
     }
 
     public SchedulerEvent(SchedulerEvent schedulerEvent){
@@ -92,6 +101,7 @@ public class SchedulerEvent {
         this.fullDay = schedulerEvent.fullDay;
         this.published = schedulerEvent.published;
         this.eventGroup = schedulerEvent.eventGroup;
+        this.teamId = schedulerEvent.teamId;;
     }
 
     public Long getId() {
@@ -150,6 +160,14 @@ public class SchedulerEvent {
         this.fullDay = fullDay;
     }
 
+    public Long getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(Long teamId) {
+        this.teamId = teamId;
+    }
+
     public ResourceEntry getResourceEntry(Map<String, SchedulerResource> resourceMap, CalendarView schedulerView){
         return getResourceEntry(resourceMap,false, schedulerView);
     }
@@ -166,6 +184,7 @@ public class SchedulerEvent {
         //handle fullDay events
         LocalDateTime utcStart = convertToUtc(this.start);
         LocalDateTime utcEnd = convertToUtc(this.end);
+
         if(fullDay){
             entry.setStart(start);
             entry.setEnd(end);
@@ -235,9 +254,11 @@ public class SchedulerEvent {
             }
             description = "Shift:" + getDateTimeFormatted(entry);
             entry.setAllDay(forceAllDay);
+
             //entry.markAsDirty();
         }
         //log.info("getResourceEntry: title:" + entry.getTitle() + " forceAllDay:" + forceAllDay + " fullDay:" + fullDay + " allDay:" + entry.isAllDay() + " start:" + entry.getStart() + " end:" + entry.getEnd());
+        //log.info("getResourceEntry: utcStart:" + utcStart + " start:" + start);
 
 
         if(this.published){
@@ -265,6 +286,7 @@ public class SchedulerEvent {
         }
 
         entry.setCustomProperty("description", descText);
+
         return entry;
     }
 
@@ -392,10 +414,17 @@ public class SchedulerEvent {
     }
 
     public String formatSummaryForNotification(){
+        return formatSummaryForNotification(null);
+    }
+
+    public String formatSummaryForNotification(LocalDate includedEndDate){
         String subject = "- ";
         subject += this.getType().typeName;
         if(this.getFullDay()){
             subject += " " + this.start.format(DateTimeFormatter.ofPattern("MMM dd yyyy"));
+            if(includedEndDate!=null){
+                subject += " - " + includedEndDate.format(DateTimeFormatter.ofPattern("MMM dd yyyy"));
+            }
         }else{
             String timeTitle = "";
             timeTitle = this.start.format(DateTimeFormatter.ofPattern("MMM dd yyyy h:mm"));

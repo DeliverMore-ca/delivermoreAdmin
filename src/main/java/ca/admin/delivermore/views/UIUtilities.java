@@ -9,6 +9,7 @@ import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.details.DetailsVariant;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -230,6 +231,19 @@ public class UIUtilities {
         verticalLayout.add(new Paragraph(message));
 
         return verticalLayout;
+    }
+
+    public static Icon createStatusIcon(Boolean isTrue) {
+        Icon icon;
+        if (isTrue) {
+            icon = VaadinIcon.CHECK.create();
+            icon.getElement().getThemeList().add("badge success");
+        } else {
+            icon = VaadinIcon.CLOSE_SMALL.create();
+            icon.getElement().getThemeList().add("badge error");
+        }
+        icon.getStyle().set("padding", "var(--lumo-space-xs");
+        return icon;
     }
 
     public static class MenuEntry{

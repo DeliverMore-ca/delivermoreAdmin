@@ -3,7 +3,11 @@ package ca.admin.delivermore.views.drivers;
 import ca.admin.delivermore.collector.data.Role;
 import ca.admin.delivermore.collector.data.service.DriversRepository;
 import ca.admin.delivermore.collector.data.service.RestClientService;
+import ca.admin.delivermore.collector.data.service.TeamsRepository;
 import ca.admin.delivermore.collector.data.tookan.Driver;
+import ca.admin.delivermore.collector.data.tookan.Team;
+import ca.admin.delivermore.components.custom.LocationChoice;
+import ca.admin.delivermore.components.custom.LocationChoiceChangedListener;
 import ca.admin.delivermore.gridexporter.ButtonsAlignment;
 import ca.admin.delivermore.gridexporter.GridExporter;
 import ca.admin.delivermore.security.AuthenticatedUser;
@@ -43,9 +47,14 @@ import java.util.*;
 @PageTitle("Drivers")
 @Route(value = "drivers", layout = MainLayout.class)
 @RolesAllowed("ADMIN")
-public class DriversView extends VerticalLayout {
+public class DriversView extends VerticalLayout implements LocationChoiceChangedListener {
 
     private Logger log = LoggerFactory.getLogger(DriversView.class);
+
+    @Override
+    public void locationChanged() {
+        refreshGrid();
+    }
 
     private enum ActionMode{
         ADD, REMOVE
@@ -54,20 +63,27 @@ public class DriversView extends VerticalLayout {
 
     RestClientService restClientService;
     DriversRepository driversRepository;
+
+    TeamsRepository teamsRepository;
     AuthenticatedUser authenticatedUser;
 
     private VerticalLayout mainLayout = UIUtilities.getVerticalLayout();
     private Grid<Driver> grid = new Grid<>();
     private MenuBar menuBar = new MenuBar();
+
+    private LocationChoice locationChoice = new LocationChoice(Boolean.TRUE);
     private Map<String, UIUtilities.MenuEntry> menuItems = new LinkedHashMap<>();
 
     private List<Driver> selectedDrivers = new ArrayList<>();
 
-    public DriversView(DriversRepository driversRepository, RestClientService restClientService, AuthenticatedUser authenticatedUser) {
+    public DriversView(DriversRepository driversRepository, RestClientService restClientService, AuthenticatedUser authenticatedUser, TeamsRepository teamsRepository) {
         this.driversRepository = driversRepository;
+        this.teamsRepository = teamsRepository;
         this.restClientService = restClientService;
         this.authenticatedUser = authenticatedUser;
 
+        locationChoice.setShowAllOption(true);
+        locationChoice.addListener(this);
         mainLayout.add(getToolbar());
         mainLayout.add(getGrid());
         setSizeFull();
@@ -124,7 +140,7 @@ public class DriversView extends VerticalLayout {
 
         menuBar.setEnabled(false);
 
-        toolbar.add(menuBar,refreshFromTookanButton);
+        toolbar.add(menuBar,refreshFromTookanButton, locationChoice.getMenuBar());
         return toolbar;
     }
 
@@ -166,13 +182,15 @@ public class DriversView extends VerticalLayout {
         exporter.createExportColumn(grid.addColumn(Driver::getName).setFlexGrow(1).setSortable(true),true,"Name");
         exporter.createExportColumn(grid.addColumn(Driver::getEmail).setAutoWidth(true).setFlexGrow(0),true,"Email");
         exporter.createExportColumn(grid.addColumn(Driver::getFleetId).setAutoWidth(true).setFlexGrow(0),true,"Id");
+        //exporter.createExportColumn(grid.addColumn(Driver::getTeamId).setAutoWidth(true).setFlexGrow(0),true,"LocationId");
+        exporter.createExportColumn(grid.addColumn(Driver::getTeamName).setAutoWidth(true).setFlexGrow(0),true,"Location");
         String statusWidth = "50px";
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.getIsActive().equals(1L))).setWidth(statusWidth).setComparator(Driver::getIsActive),true,"Payout Enabled",grid.addColumn(Driver::getIsActivePresentation));
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.isUser())).setWidth(statusWidth).setComparator(Driver::isUser),true,"User",grid.addColumn(Driver::isUser));
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.isManager())).setWidth(statusWidth).setComparator(Driver::isManager),true,"Manager",grid.addColumn(Driver::isManager));
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.isAdmin())).setWidth(statusWidth).setComparator(Driver::isAdmin),true,"Admin",grid.addColumn(Driver::isAdmin));
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.getLoginAllowed())).setWidth(statusWidth).setComparator(Driver::getLoginAllowed),true,"Login Allowed",grid.addColumn(Driver::getLoginAllowed));
-        exporter.createExportColumn(grid.addComponentColumn(driver -> createStatusIcon(driver.hasPassword())).setWidth(statusWidth).setComparator(Driver::hasPassword),true,"Password?",grid.addColumn(Driver::hasPassword));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.getIsActive().equals(1L))).setWidth(statusWidth).setComparator(Driver::getIsActive),true,"Payout Enabled",grid.addColumn(Driver::getIsActivePresentation));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.isUser())).setWidth(statusWidth).setComparator(Driver::isUser),true,"User",grid.addColumn(Driver::isUser));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.isManager())).setWidth(statusWidth).setComparator(Driver::isManager),true,"Manager",grid.addColumn(Driver::isManager));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.isAdmin())).setWidth(statusWidth).setComparator(Driver::isAdmin),true,"Admin",grid.addColumn(Driver::isAdmin));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.getLoginAllowed())).setWidth(statusWidth).setComparator(Driver::getLoginAllowed),true,"Login Allowed",grid.addColumn(Driver::getLoginAllowed));
+        exporter.createExportColumn(grid.addComponentColumn(driver -> UIUtilities.createStatusIcon(driver.hasPassword())).setWidth(statusWidth).setComparator(Driver::hasPassword),true,"Password?",grid.addColumn(Driver::hasPassword));
         exporter.createExportColumn(grid.addColumn(Driver::getFleetThumbImage),false,"Image");
 
         exporter.setFileName("DriverExport" + new SimpleDateFormat("yyyyMMdd").format(Calendar.getInstance().getTime()));
@@ -201,23 +219,34 @@ public class DriversView extends VerticalLayout {
                 .withProperty("fullName", Driver::getName);
     }
 
-    private Icon createStatusIcon(Boolean inRole) {
-        Icon icon;
-        if (inRole) {
-            icon = VaadinIcon.CHECK.create();
-            icon.getElement().getThemeList().add("badge success");
-        } else {
-            icon = VaadinIcon.CLOSE_SMALL.create();
-            icon.getElement().getThemeList().add("badge error");
-        }
-        icon.getStyle().set("padding", "var(--lumo-space-xs");
-        return icon;
-    }
-
     private void refreshDrivers(){
+
+        //refresh the teams from tookan in case they have changed
+        List<Team> currentTeamsList = restClientService.getAllTeams();
+        //update existing tookan data or save new
+        for (Team team: currentTeamsList ) {
+            Team foundTeam = teamsRepository.findByTeamId(team.getTeamId());
+            if(foundTeam==null){ //new
+                log.info("refreshDrivers: saving new team:" + team.getTeamName());
+                teamsRepository.save(team);
+            }else{ //update
+                log.info("refreshDrivers: updating tookan fields for team:" + team.getTeamName());
+                foundTeam.updateTeamTookanOnly(team);
+                teamsRepository.save(foundTeam);
+            }
+        }
+
         List<Driver> currentDriverList = restClientService.getAllDrivers();
         //update existing tookan data or save new
         for (Driver driver: currentDriverList) {
+            //find the team name from the id
+            Team team = teamsRepository.findByTeamId(driver.getTeamId());
+            if(team==null){
+                driver.setTeamName("Not found");
+            }else{
+                driver.setTeamName(team.getTeamName());
+            }
+
             Driver foundDriver = driversRepository.getDriverByFleetId(driver.getFleetId());
             if(foundDriver==null){ //new
                 log.info("refreshDrivers: saving new driver:" + driver.getName());
@@ -233,10 +262,25 @@ public class DriversView extends VerticalLayout {
             log.info("refreshDrivers: calling updateDriverIsActive for:" + driver.getName());
             driversRepository.save(driver.updateDriverIsActive(driver,currentDriverList));
         }
+
+        refreshGrid();
+
+    }
+
+    private void refreshGrid(){
+        log.info("refreshGrid: selected location: " + locationChoice.getSelectedLocation());
+
+        //TODO: need to only display drivers according to location selected
+        if(locationChoice.isAllLocationsSelected()){
+            driverList = driversRepository.findByOrderByIsActiveDescNameAsc();
+        }else{
+            driverList = driversRepository.findByTeamIdOrderByIsActiveNameAsc(locationChoice.getSelectedLocationId());
+        }
+
         //refresh the full list from the database
-        driverList = driversRepository.findByOrderByIsActiveDescNameAsc();
         grid.setItems(driverList);
         grid.getDataProvider().refreshAll();
+
     }
 
     private void performAction(UIUtilities.MenuEntry action){

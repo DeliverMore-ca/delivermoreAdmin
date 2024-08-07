@@ -13,6 +13,7 @@ import ca.admin.delivermore.views.home.HomeView;
 import ca.admin.delivermore.views.intuit.QBOConnectView;
 import ca.admin.delivermore.views.login.PasswordReset;
 import ca.admin.delivermore.views.report.PeriodSummaryView;
+import ca.admin.delivermore.views.restaurants.RestInvoiceView;
 import ca.admin.delivermore.views.restaurants.RestPayoutView;
 import ca.admin.delivermore.views.restaurants.RestView;
 import ca.admin.delivermore.views.tasks.TaskListView;
@@ -20,6 +21,7 @@ import ca.admin.delivermore.views.tasks.TasksByCustomerView;
 import ca.admin.delivermore.views.tasks.TasksByDayAndWeekView;
 import ca.admin.delivermore.views.tasks.TasksView;
 import ca.admin.delivermore.views.utility.GiftCardView;
+import ca.admin.delivermore.views.utility.TeamsView;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
@@ -127,6 +129,7 @@ public class MainLayout extends AppLayout {
         //only add the menu folder if the user has access to at least one of the sub views
         if (checkAccess(DriversView.class)
                 || checkAccess(RestView.class)
+                || checkAccess(TeamsView.class)
                 || checkAccess(TaskListView.class)
                 || checkAccess(QBOConnectView.class)
                 || checkAccess(DriverAdjustmentTemplateView.class)
@@ -142,6 +145,10 @@ public class MainLayout extends AppLayout {
             if (checkAccess(DriverAdjustmentTemplateView.class)) {
                 AppNavItem driverAdjustMenu = new AppNavItem("Driver Adj Templates", DriverAdjustmentTemplateView.class, "la la-car-side");
                 utilities.addItem(driverAdjustMenu);
+            }
+            if (checkAccess(TeamsView.class)) {
+                AppNavItem teamsMenu = new AppNavItem("Locations", TeamsView.class, "la la-map-marked-alt");
+                utilities.addItem(teamsMenu);
             }
             if (checkAccess(RestView.class)) {
                 AppNavItem restMenu = new AppNavItem("Restaurants", RestView.class, "la la-store-alt");
@@ -170,7 +177,8 @@ public class MainLayout extends AppLayout {
         //only add the menu folder if the user has access to at least one of the sub views
         if (checkAccess(TasksByCustomerView.class)
                 || checkAccess(TasksByDayAndWeekView.class)
-                || checkAccess(PeriodSummaryView.class)) {
+                || checkAccess(PeriodSummaryView.class)
+                || checkAccess(DriverReportView.class)) {
             AppNavItem reports = new AppNavItem("Reports");
             reports.setIconClass("la la-folder-open");
             nav.addItem(reports);
@@ -186,6 +194,10 @@ public class MainLayout extends AppLayout {
                 AppNavItem periodSummaryMenu = new AppNavItem("Period Summary", PeriodSummaryView.class, "la la-calendar");
                 reports.addItem(periodSummaryMenu);
             }
+            if (checkAccess(DriverReportView.class)) {
+                AppNavItem periodSummaryMenu = new AppNavItem("Driver Report", DriverReportView.class, "la la-car-side");
+                reports.addItem(periodSummaryMenu);
+            }
         }
 
         if (checkAccess(DriverPayoutView.class)) {
@@ -194,6 +206,10 @@ public class MainLayout extends AppLayout {
         }
         if (checkAccess(RestPayoutView.class)) {
             nav.addItem(new AppNavItem("Restaurant Payouts", RestPayoutView.class, "la la-file-invoice-dollar"));
+
+        }
+        if (checkAccess(RestInvoiceView.class)) {
+            nav.addItem(new AppNavItem("Invoiced Vendors", RestInvoiceView.class, "la la-file-invoice-dollar"));
 
         }
         if (checkAccess(PasswordReset.class)) {

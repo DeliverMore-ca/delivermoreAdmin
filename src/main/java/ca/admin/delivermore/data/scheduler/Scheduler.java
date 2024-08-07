@@ -17,6 +17,10 @@ public final class Scheduler {
 
     public static final LocalTime minTime = LocalTime.of(10, 0);
     public static final LocalTime maxTime = LocalTime.of(22, 0);
+
+    public static final LocalTime minTimeDialog = LocalTime.of(8, 0);
+    public static final LocalTime maxTimeDialog = LocalTime.of(22, 0);
+
     public static final Timezone tzDefault = new Timezone(ZoneId.of("America/Edmonton"));
     public static final Duration timeStep = Duration.ofMinutes(30);
     public static final String driverLastUsedView = "LastUsedSchedulerView";
