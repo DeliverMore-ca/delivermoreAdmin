@@ -3,9 +3,9 @@ package ca.admin.delivermore.data.report;
 import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.IdClass;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.List;

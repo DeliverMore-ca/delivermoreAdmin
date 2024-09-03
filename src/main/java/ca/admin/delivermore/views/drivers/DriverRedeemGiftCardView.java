@@ -13,17 +13,17 @@ import ca.admin.delivermore.views.MainLayout;
 import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import jakarta.annotation.security.RolesAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.security.RolesAllowed;
 import java.util.Optional;
 
 @PageTitle("Redeem Gift Card")
@@ -84,7 +84,7 @@ public class DriverRedeemGiftCardView extends VerticalLayout {
     private void buildGiftCardSearchResults() {
         giftCardSearchResultLayout.removeAll();
         if(giftCard==null){
-            Label noResultsLabel = new Label("No Gift Card Found");
+            NativeLabel noResultsLabel = new NativeLabel("No Gift Card Found");
             giftCardSearchResultLayout.add(noResultsLabel);
         }else{
             log.info("buildGiftCardSearchResults: Gift Card:" + giftCard);
@@ -125,7 +125,7 @@ public class DriverRedeemGiftCardView extends VerticalLayout {
                 });
                 giftCardSearchResultLayout.add(redeemFull,redeemPart);
             }else{
-                Label noBalanceLabel = new Label("Gift Card has no balance remaining");
+                NativeLabel noBalanceLabel = new NativeLabel("Gift Card has no balance remaining");
                 giftCardSearchResultLayout.add(noBalanceLabel);
             }
 

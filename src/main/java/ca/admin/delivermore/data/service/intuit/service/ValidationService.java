@@ -8,6 +8,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.tomcat.util.codec.binary.Base64;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,19 +56,44 @@ public class ValidationService {
         String idTokenPayload = base64UrlDecode(idTokenParts[1]);
         byte[] idTokenSignature = base64UrlDecodeToBytes(idTokenParts[2]);
 
-        JSONObject idTokenHeaderJson = new JSONObject(idTokenHeader);
-        JSONObject idTokenHeaderPayload = new JSONObject(idTokenPayload);
+        JSONObject idTokenHeaderJson = null;
+        try {
+            idTokenHeaderJson = new JSONObject(idTokenHeader);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        JSONObject idTokenHeaderPayload = null;
+        try {
+            idTokenHeaderPayload = new JSONObject(idTokenPayload);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         //Step 1 : First check if the issuer is as mentioned in "issuer" in the discovery doc
-        String issuer = idTokenHeaderPayload.getString("iss");
+        String issuer = null;
+        try {
+            issuer = idTokenHeaderPayload.getString("iss");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
         if(!issuer.equalsIgnoreCase(oAuth2Configuration.getIntuitIdTokenIssuer())) {
             logger.debug("issuer value mismtach");
             return false;
         }
 
         //Step 2 : check if the aud field in idToken is same as application's clientId
-        JSONArray jsonaud = idTokenHeaderPayload.getJSONArray("aud");
-        String aud = jsonaud.getString(0);
+        JSONArray jsonaud = null;
+        try {
+            jsonaud = idTokenHeaderPayload.getJSONArray("aud");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        String aud = null;
+        try {
+            aud = jsonaud.getString(0);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         if(!aud.equalsIgnoreCase(oAuth2Configuration.getAppClientId())) {
             logger.debug("incorrect client id");
@@ -75,7 +101,12 @@ public class ValidationService {
         }
 
         //Step 3 : ensure the timestamp has not elapsed
-        Long expirationTimestamp = idTokenHeaderPayload.getLong("exp");
+        Long expirationTimestamp = null;
+        try {
+            expirationTimestamp = idTokenHeaderPayload.getLong("exp");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
         Long currentTime = Instant.now().getEpochSecond();
 
         if((expirationTimestamp - currentTime) <= 0) {
@@ -91,12 +122,27 @@ public class ValidationService {
         }
 
         //first get the kid from the header.
-        String keyId = idTokenHeaderJson.getString("kid");
+        String keyId = null;
+        try {
+            keyId = idTokenHeaderJson.getString("kid");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
         JSONObject keyDetails = keyMap.get(keyId);
 
         //now get the exponent (e) and modulo (n) to form the PublicKey
-        String exponent = keyDetails.getString("e");
-        String modulo = keyDetails.getString("n");
+        String exponent = null;
+        try {
+            exponent = keyDetails.getString("e");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        String modulo = null;
+        try {
+            modulo = keyDetails.getString("n");
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         //build the public key
         PublicKey publicKey = getPublicKey(modulo, exponent);

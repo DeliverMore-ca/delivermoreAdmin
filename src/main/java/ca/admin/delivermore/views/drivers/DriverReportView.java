@@ -32,6 +32,7 @@ import fr.opensagres.xdocreport.document.registry.XDocReportRegistry;
 import fr.opensagres.xdocreport.template.IContext;
 import fr.opensagres.xdocreport.template.TemplateEngineKind;
 import fr.opensagres.xdocreport.template.formatter.FieldsMetadata;
+import jakarta.annotation.security.RolesAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Sort;
 import org.vaadin.olli.FileDownloadWrapper;
 
-import javax.annotation.security.RolesAllowed;
 import java.io.*;
 import java.nio.file.Files;
 import java.time.DayOfWeek;

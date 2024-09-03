@@ -8,26 +8,23 @@ import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
 import ca.admin.delivermore.data.service.DriverAdjustmentRepository;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.views.UIUtilities;
-import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.details.DetailsVariant;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.io.File;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,8 +32,19 @@ import java.util.stream.Stream;
 public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
     @Id
     private Long fleetId;
+
     @Id
     private LocalDate payoutDate;
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
 
     private LocalDate weekEndDate;
 
@@ -430,7 +438,7 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
             driverDayGrid.addColumn(DriverPayoutEntity::getJobId).setHeader("Task Id");
             driverDayGrid.getColumns().forEach(col -> col.setAutoWidth(true));
 
-            driverDayDetails.setContent(driverDayGrid);
+            driverDayDetails.add(driverDayGrid);
             //driverDayGrid.asSingleSelect().addValueChangeListener(e -> editDriverPayoutEntity(e.getValue()));
 
         }
@@ -462,7 +470,7 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
         driverAdjustmentGrid.addThemeVariants(GridVariant.LUMO_COMPACT);
         VerticalLayout driverAdjustmentsContent = UIUtilities.getVerticalLayout();
         driverAdjustmentsContent.add(driverAdjustmentGrid);
-        driverWeekAdjustments.addContent(driverAdjustmentsContent);
+        driverWeekAdjustments.add(driverAdjustmentsContent);
         /*
         driverAdjustmentGrid.addComponentColumn(item -> {
             Icon editIcon = new Icon("lumo", "edit");
@@ -492,7 +500,7 @@ public class DriverPayoutWeek implements DriverPayoutInterface, Serializable {
             driverAdjustmentGrid.setItems(this.getDriverAdjustmentList());
         }
 
-        driverDetails.setContent(driverDetailsContent);
+        driverDetails.add(driverDetailsContent);
 
         return driverDetails;
 

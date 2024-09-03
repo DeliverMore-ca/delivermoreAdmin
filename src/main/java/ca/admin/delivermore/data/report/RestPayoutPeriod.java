@@ -15,7 +15,7 @@ import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -150,14 +150,14 @@ public class RestPayoutPeriod implements Serializable {
         VerticalLayout periodDetailsContent = UIUtilities.getVerticalLayout();
         String summaryTitle = restaurantName + ": " + periodStart + " - " + periodEnd;
         NumberField periodOwing = UIUtilities.getNumberField("", getOwingToVendor());
-        Label periodOwingLabel = new Label("Owing :");
+        NativeLabel periodOwingLabel = new NativeLabel("Owing :");
         periodDetailsSummaryOwing.add(periodOwingLabel,periodOwing);
         periodDetailsSummaryHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         periodDetailsSummaryHeader.setAlignItems(FlexComponent.Alignment.START);
         periodDetailsSummaryHeader.add(new Text(summaryTitle),periodDetailsSummaryOwing);
         periodDetailsSummary.add(periodDetailsSummaryHeader,periodDetailsSummaryFields);
         periodDetails.setSummary(periodDetailsSummary);
-        periodDetails.setContent(periodDetailsContent);
+        periodDetails.add(periodDetailsContent);
         NumberField periodPayoutSale = UIUtilities.getNumberField("Sales", getPayoutSale());
         NumberField periodPayoutTaxes = UIUtilities.getNumberField("Taxes", getPayoutTaxes());
         NumberField periodPayoutTotalSale = UIUtilities.getNumberField("TotalSales", getPayoutTotalSale());
@@ -202,7 +202,7 @@ public class RestPayoutPeriod implements Serializable {
             labelCount = getItemCount();
             //Double totalSaleIncludingWebOrderOnline = getTotalSale() + getPrePaidTotalSale();
             labelString = "Total Sales (" + labelCount + " " + UIUtilities.singlePlural(labelCount, "item", "items") + ") Total Sales " + UIUtilities.getNumberFormatted(getTotalSale());
-            Label totalSalesLabel = new Label(labelString);
+            NativeLabel totalSalesLabel = new NativeLabel(labelString);
             periodDetailsContent.add(totalSalesLabel);
         }
         //Details/Grid for direct sales items
@@ -238,14 +238,14 @@ public class RestPayoutPeriod implements Serializable {
             includeGlobalFields = Boolean.FALSE;
         }
         VerticalLayout salesLayout = getItemGrid(null, salesList, includeGlobalFields, showPrePaidSaleColumn);
-        salesDetails.setContent(salesLayout);
+        salesDetails.add(salesLayout);
         return salesDetails;
     }
 
     private VerticalLayout getAdjustmentsGrid(){
         VerticalLayout gridLayout = UIUtilities.getVerticalLayout(true,true,false);
         String labelString = "Adjustments (" + restAdjustmentList.size() + " " + UIUtilities.singlePlural(restAdjustmentList.size(), "item", "items") + ")";
-        Label gridLabel = new Label(labelString);
+        NativeLabel gridLabel = new NativeLabel(labelString);
 
         HorizontalLayout periodAdustmentsToolbar = UIUtilities.getHorizontalLayout(true,true,false);
         Icon addNewIcon = new Icon("lumo", "plus");
@@ -310,7 +310,7 @@ public class RestPayoutPeriod implements Serializable {
             if(label==null){
                 gridLayout.add(grid);
             }else{
-                Label gridLabel = new Label(label);
+                NativeLabel gridLabel = new NativeLabel(label);
                 gridLayout.add(gridLabel,grid);
             }
             grid.setItems(list);

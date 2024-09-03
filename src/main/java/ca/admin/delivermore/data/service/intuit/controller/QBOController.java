@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -257,7 +257,7 @@ public class QBOController {
         String url = prepareUrl(oAuth2Configuration.getC2QBScope(), generateCSRFToken());
         logger.info("inside connectToQBO: url:" + url);
         //TODO:: perhaps open this connect process in another window/tab
-        UI.getCurrent().getPage().executeJavaScript("window.location.replace(\"" + url + "\");");
+        UI.getCurrent().getPage().executeJs("window.location.replace(\"" + url + "\");");
     }
 
     private void clearTokens(){

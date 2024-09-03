@@ -1,8 +1,6 @@
 package ca.admin.delivermore.views;
 
 import ca.admin.delivermore.collector.data.tookan.Driver;
-import ca.admin.delivermore.components.appnav.AppNav;
-import ca.admin.delivermore.components.appnav.AppNavItem;
 import ca.admin.delivermore.components.appnav.BrandExpression;
 import ca.admin.delivermore.data.service.Registry;
 import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
@@ -29,6 +27,9 @@ import com.vaadin.flow.component.avatar.Avatar;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.sidenav.SideNav;
+import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.server.auth.AccessAnnotationChecker;
 import org.slf4j.Logger;
@@ -96,33 +97,38 @@ public class MainLayout extends AppLayout {
         section.addClassNames("drawer-section");
         return section;
     }
-
-    private AppNav createNavigation() {
-        // AppNav is not yet an official component.
+    
+    private SideNav createNavigation() {
+        // SideNav is not yet an official component.
         // For documentation, visit https://github.com/vaadin/vcf-nav#readme
-        AppNav nav = new AppNav();
+        SideNav nav = new SideNav();
         nav.addClassNames("app-nav");
 
         if (checkAccess(HomeView.class)) {
-            nav.addItem(new AppNavItem("Home", HomeView.class, "la la-home"));
+            nav.addItem(new SideNavItem("Home", HomeView.class, VaadinIcon.HOME.create()));
+            //nav.addItem(new SideNavItem("Home", HomeView.class, "la la-home"));
 
         }
         if (checkAccess(AboutView.class)) {
-            nav.addItem(new AppNavItem("About", AboutView.class, "la la-question-circle"));
+            nav.addItem(new SideNavItem("About", AboutView.class, VaadinIcon.QUESTION_CIRCLE.create()));
+            //nav.addItem(new SideNavItem("About", AboutView.class, "la la-question-circle"));
 
         }
         if (checkAccess(MyPayView.class)) {
-            nav.addItem(new AppNavItem("My Pay", MyPayView.class, "la la-dollar-sign"));
+            nav.addItem(new SideNavItem("My Pay", MyPayView.class, VaadinIcon.DOLLAR.create()));
+            //nav.addItem(new SideNavItem("My Pay", MyPayView.class, "la la-dollar-sign"));
 
         }
 
         if (checkAccess(DriverRedeemGiftCardView.class)) {
-            nav.addItem(new AppNavItem("Redeem Gift Card", DriverRedeemGiftCardView.class, "la la-credit-card"));
+            nav.addItem(new SideNavItem("Redeem Gift Card", DriverRedeemGiftCardView.class, VaadinIcon.CREDIT_CARD.create()));
+            //nav.addItem(new SideNavItem("Redeem Gift Card", DriverRedeemGiftCardView.class, "la la-credit-card"));
 
         }
 
         if (checkAccess(ScheduleView.class)) {
-            nav.addItem(new AppNavItem("Schedule", ScheduleView.class, "la la-calendar"));
+            nav.addItem(new SideNavItem("Schedule", ScheduleView.class, VaadinIcon.CALENDAR.create()));
+            //nav.addItem(new SideNavItem("Schedule", ScheduleView.class, "la la-calendar"));
 
         }
 
@@ -135,41 +141,49 @@ public class MainLayout extends AppLayout {
                 || checkAccess(DriverAdjustmentTemplateView.class)
                 || checkAccess(GiftCardView.class)
                 || checkAccess(TasksView.class)) {
-            AppNavItem utilities = new AppNavItem("Utilities");
-            utilities.setIconClass("la la-folder-open");
+            SideNavItem utilities = new SideNavItem("Utilities");
+            utilities.setPrefixComponent(VaadinIcon.FOLDER_OPEN.create());
             nav.addItem(utilities);
             if (checkAccess(DriversView.class)) {
-                AppNavItem driversMenu = new AppNavItem("Drivers", DriversView.class, "la la-car-side");
+                SideNavItem driversMenu = new SideNavItem("Drivers", DriversView.class, VaadinIcon.CAR.create());
+                //SideNavItem driversMenu = new SideNavItem("Drivers", DriversView.class, "la la-car-side");
                 utilities.addItem(driversMenu);
             }
             if (checkAccess(DriverAdjustmentTemplateView.class)) {
-                AppNavItem driverAdjustMenu = new AppNavItem("Driver Adj Templates", DriverAdjustmentTemplateView.class, "la la-car-side");
+                SideNavItem driverAdjustMenu = new SideNavItem("Driver Adj Templates", DriverAdjustmentTemplateView.class, VaadinIcon.CAR.create());
+                //SideNavItem driverAdjustMenu = new SideNavItem("Driver Adj Templates", DriverAdjustmentTemplateView.class, "la la-car-side");
                 utilities.addItem(driverAdjustMenu);
             }
             if (checkAccess(TeamsView.class)) {
-                AppNavItem teamsMenu = new AppNavItem("Locations", TeamsView.class, "la la-map-marked-alt");
+                SideNavItem teamsMenu = new SideNavItem("Locations", TeamsView.class, VaadinIcon.MAP_MARKER.create());
+                //SideNavItem teamsMenu = new SideNavItem("Locations", TeamsView.class, "la la-map-marked-alt");
                 utilities.addItem(teamsMenu);
             }
             if (checkAccess(RestView.class)) {
-                AppNavItem restMenu = new AppNavItem("Restaurants", RestView.class, "la la-store-alt");
+                SideNavItem restMenu = new SideNavItem("Restaurants", RestView.class, VaadinIcon.SHOP.create());
+                //SideNavItem restMenu = new SideNavItem("Restaurants", RestView.class, "la la-store-alt");
                 utilities.addItem(restMenu);
             }
             if (checkAccess(TaskListView.class)) {
-                AppNavItem taskListMenu = new AppNavItem("Task List", TaskListView.class, "la la-stack-overflow");
+                SideNavItem taskListMenu = new SideNavItem("Task List", TaskListView.class, VaadinIcon.LIST.create());
+                //SideNavItem taskListMenu = new SideNavItem("Task List", TaskListView.class, "la la-stack-overflow");
                 utilities.addItem(taskListMenu);
             }
             if (checkAccess(GiftCardView.class)) {
-                AppNavItem giftCardListMenu = new AppNavItem("Gift Card List", GiftCardView.class, "la la-credit-card");
+                SideNavItem giftCardListMenu = new SideNavItem("Gift Card List", GiftCardView.class, VaadinIcon.CREDIT_CARD.create());
+                //SideNavItem giftCardListMenu = new SideNavItem("Gift Card List", GiftCardView.class, "la la-credit-card");
                 utilities.addItem(giftCardListMenu);
             }
             if(oAuth2Configuration.isConfigured()){
                 if (checkAccess(QBOConnectView.class)) {
-                    AppNavItem qboConnectMenu = new AppNavItem("QBO connect", QBOConnectView.class, "la la-network-wired");
+                    SideNavItem qboConnectMenu = new SideNavItem("QBO connect", QBOConnectView.class, VaadinIcon.CONNECT_O.create());
+                    //SideNavItem qboConnectMenu = new SideNavItem("QBO connect", QBOConnectView.class, "la la-network-wired");
                     utilities.addItem(qboConnectMenu);
                 }
             }
             if (checkAccess(TasksView.class)) {
-                AppNavItem tasksMenu = new AppNavItem("Tasks(under dev)", TasksView.class, "la la-stack-overflow");
+                SideNavItem tasksMenu = new SideNavItem("Tasks(under dev)", TasksView.class, VaadinIcon.LIST.create());
+                //SideNavItem tasksMenu = new SideNavItem("Tasks(under dev)", TasksView.class, "la la-stack-overflow");
                 utilities.addItem(tasksMenu);
             }
         }
@@ -179,41 +193,49 @@ public class MainLayout extends AppLayout {
                 || checkAccess(TasksByDayAndWeekView.class)
                 || checkAccess(PeriodSummaryView.class)
                 || checkAccess(DriverReportView.class)) {
-            AppNavItem reports = new AppNavItem("Reports");
-            reports.setIconClass("la la-folder-open");
+            SideNavItem reports = new SideNavItem("Reports");
+            reports.setPrefixComponent(VaadinIcon.FOLDER_OPEN.create());
             nav.addItem(reports);
             if (checkAccess(TasksByCustomerView.class)) {
-                AppNavItem customerTasksMenu = new AppNavItem("Tasks by Customer", TasksByCustomerView.class, "la la-user");
+                SideNavItem customerTasksMenu = new SideNavItem("Tasks by Customer", TasksByCustomerView.class, VaadinIcon.USER.create());
+                //SideNavItem customerTasksMenu = new SideNavItem("Tasks by Customer", TasksByCustomerView.class, "la la-user");
                 reports.addItem(customerTasksMenu);
             }
             if (checkAccess(TasksByDayAndWeekView.class)) {
-                AppNavItem tasksByDayAndWeekMenu = new AppNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, "la la-calendar");
+                SideNavItem tasksByDayAndWeekMenu = new SideNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, VaadinIcon.CALENDAR.create());
+                //SideNavItem tasksByDayAndWeekMenu = new SideNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, "la la-calendar");
                 reports.addItem(tasksByDayAndWeekMenu);
             }
             if (checkAccess(PeriodSummaryView.class)) {
-                AppNavItem periodSummaryMenu = new AppNavItem("Period Summary", PeriodSummaryView.class, "la la-calendar");
+                SideNavItem periodSummaryMenu = new SideNavItem("Period Summary", PeriodSummaryView.class, VaadinIcon.CALENDAR_BRIEFCASE.create());
+                //SideNavItem periodSummaryMenu = new SideNavItem("Period Summary", PeriodSummaryView.class, "la la-calendar");
                 reports.addItem(periodSummaryMenu);
             }
             if (checkAccess(DriverReportView.class)) {
-                AppNavItem periodSummaryMenu = new AppNavItem("Driver Report", DriverReportView.class, "la la-car-side");
+                SideNavItem periodSummaryMenu = new SideNavItem("Driver Report", DriverReportView.class, VaadinIcon.CAR.create());
+                //SideNavItem periodSummaryMenu = new SideNavItem("Driver Report", DriverReportView.class, "la la-car-side");
                 reports.addItem(periodSummaryMenu);
             }
         }
 
         if (checkAccess(DriverPayoutView.class)) {
-            nav.addItem(new AppNavItem("Driver Payouts", DriverPayoutView.class, "la la-portrait"));
+            nav.addItem(new SideNavItem("Driver Payouts", DriverPayoutView.class, VaadinIcon.DOLLAR.create()));
+            //nav.addItem(new SideNavItem("Driver Payouts", DriverPayoutView.class, "la la-portrait"));
 
         }
         if (checkAccess(RestPayoutView.class)) {
-            nav.addItem(new AppNavItem("Restaurant Payouts", RestPayoutView.class, "la la-file-invoice-dollar"));
+            nav.addItem(new SideNavItem("Restaurant Payouts", RestPayoutView.class, VaadinIcon.INVOICE.create()));
+            //nav.addItem(new SideNavItem("Restaurant Payouts", RestPayoutView.class, "la la-file-invoice-dollar"));
 
         }
         if (checkAccess(RestInvoiceView.class)) {
-            nav.addItem(new AppNavItem("Invoiced Vendors", RestInvoiceView.class, "la la-file-invoice-dollar"));
+            nav.addItem(new SideNavItem("Invoiced Vendors", RestInvoiceView.class, VaadinIcon.INVOICE.create()));
+            //nav.addItem(new SideNavItem("Invoiced Vendors", RestInvoiceView.class, "la la-file-invoice-dollar"));
 
         }
         if (checkAccess(PasswordReset.class)) {
-            nav.addItem(new AppNavItem("Reset password", PasswordReset.class, "la la-key"));
+            nav.addItem(new SideNavItem("Reset password", PasswordReset.class, VaadinIcon.PASSWORD.create()));
+            //nav.addItem(new SideNavItem("Reset password", PasswordReset.class, "la la-key"));
 
         }
 

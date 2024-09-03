@@ -1,7 +1,7 @@
 package ca.admin.delivermore.data.entity;
 
-import javax.persistence.*;
-import javax.validation.constraints.NotNull;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 public class DriverAdjustmentTemplate {

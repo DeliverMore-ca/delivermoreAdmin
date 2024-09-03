@@ -4,10 +4,10 @@ import ca.admin.delivermore.collector.data.Utility;
 import ca.admin.delivermore.data.service.GiftCardRepository;
 import ca.admin.delivermore.data.service.GiftCardTranactionRepository;
 import ca.admin.delivermore.data.service.Registry;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 
-import javax.persistence.*;
-import javax.validation.constraints.NotNull;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.List;
 

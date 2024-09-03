@@ -3,6 +3,7 @@ package ca.admin.delivermore.gridexporter;
 
 import com.flowingcode.vaadin.addons.gridhelpers.GridHelper;
 import com.vaadin.flow.component.ComponentUtil;
+import com.vaadin.flow.component.grid.ColumnPathRenderer;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.Grid.Column;
 import com.vaadin.flow.component.html.Anchor;
@@ -27,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.text.DateFormat;
@@ -138,19 +140,29 @@ public class GridExporter<T> implements Serializable {
         }
 
         // at this point if the value is still null then take the only value from ColumPathRenderer VP
-        if (value==null && column.getRenderer() instanceof Renderer) {
-            Renderer<T> r = (Renderer<T>) column.getRenderer();
-            if (r.getValueProviders().size()>0) {
-                value = r.getValueProviders().values().iterator().next().apply(item);
-            } else if (r instanceof BasicRenderer) {
+        if (value == null && column.getRenderer() instanceof Renderer) {
+            Renderer<T> renderer = column.getRenderer();
+            if (renderer instanceof ColumnPathRenderer) {
+                try {
+                    Field provider = ColumnPathRenderer.class.getDeclaredField("provider");
+                    provider.setAccessible(true);
+                    ValueProvider<T, ?> vp = (ValueProvider<T, ?>) provider.get(renderer);
+                    value = vp.apply(item);
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    throw new IllegalStateException("Problem obtaining value or exporting", e);
+                }
+            } else if (renderer instanceof BasicRenderer) {
                 try {
                     Method getValueProviderMethod = BasicRenderer.class.getDeclaredMethod("getValueProvider");
                     getValueProviderMethod.setAccessible(true);
                     @SuppressWarnings("unchecked")
-                    ValueProvider<T,?> vp = (ValueProvider<T, ?>) getValueProviderMethod.invoke(r);
+                    ValueProvider<T, ?> vp = (ValueProvider<T, ?>) getValueProviderMethod.invoke(renderer);
                     value = vp.apply(item);
-                } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException |
-                         InvocationTargetException e) {
+                } catch (NoSuchMethodException
+                         | SecurityException
+                         | IllegalAccessException
+                         | IllegalArgumentException
+                         | InvocationTargetException e) {
                     throw new IllegalStateException("Problem obtaining value or exporting", e);
                 }
             }

@@ -1,6 +1,6 @@
 package ca.admin.delivermore.data.entity;
 
-import javax.persistence.Entity;
+import jakarta.persistence.Entity;
 
 @Entity
 public class Orders extends AbstractEntity {

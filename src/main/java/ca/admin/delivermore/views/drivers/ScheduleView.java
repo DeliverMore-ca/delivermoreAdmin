@@ -26,14 +26,12 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import jakarta.annotation.security.RolesAllowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.stefan.fullcalendar.*;
-import org.vaadin.stefan.fullcalendar.dataprovider.EntryProvider;
-import org.vaadin.stefan.fullcalendar.dataprovider.InMemoryEntryProvider;
 
-import javax.annotation.security.RolesAllowed;
 import java.time.*;
 import java.util.*;
 import java.util.function.Function;
@@ -136,7 +134,7 @@ public class ScheduleView extends Main implements SchedulerRefreshNeededListener
     private void sizeScheduler(){
         //add fix so the sidebar menu is not overwritten by the header of the calendar
         //removed as test 6.0.0  scheduler.addCustomStyles(".fc .fc-scrollgrid-section-sticky > * {z-index: 1;} ");
-        scheduler.setHeightByParent();
+        //scheduler.setHeightByParent();
         scheduler.setWidthFull();
         detailsLayout.add(scheduler);
         detailsLayout.setFlexGrow(1, scheduler);
@@ -147,14 +145,28 @@ public class ScheduleView extends Main implements SchedulerRefreshNeededListener
 
     private HorizontalLayout getToolbar() {
         HorizontalLayout toolbar = UIUtilities.getHorizontalLayout();
+
         toolbar.add(schedulerMenuBar);
         toolbar.setAlignItems(FlexComponent.Alignment.BASELINE);
         toolbar.addClassName("toolbar");
 
+        //email notification setting - default is enabled/true
+        if(driverIdForView!=null){
+            MenuItem settingsEmailNotifications;
+            settingsEmailNotifications = schedulerMenuBar.getSettingsMenuItem().getSubMenu().addItem("Enable Email Notifications");
+            settingsEmailNotifications.setCheckable(true);
+            settingsEmailNotifications.setChecked(Config.getInstance().getEmailNotifications(driverIdForView.toString(), Boolean.TRUE));
+            settingsEmailNotifications.addClickListener(e -> {
+                Config.getInstance().setEmailNotifications(driverIdForView.toString(), !Config.getInstance().getEmailNotifications(driverIdForView.toString(), Boolean.TRUE));
+            });
+        }
+
         //add view toggle icon
         viewIcon = new Icon(VaadinIcon.CALENDAR_CLOCK);
         viewIcon.setTooltipText("Switch between calendar and list view");
-        schedulerMenuBar.addItem(viewIcon);
+        MenuItem tempItem = schedulerMenuBar.addItem(viewIcon);
+        tempItem.setVisible(true);
+        tempItem.setEnabled(true);
         viewIcon.addClickListener(item -> {
             toggleView();
         });
@@ -171,8 +183,6 @@ public class ScheduleView extends Main implements SchedulerRefreshNeededListener
         });
         schedulerMenuBar.addItem(addIcon);
 
-        MenuItem settingsMenuItem = schedulerMenuBar.getSettingsMenuItem();
-
         if(!isOnlyUser){  //Admin user
             Icon pubIcon = new Icon(VaadinIcon.CHECK);
             pubIcon.setColor("green");
@@ -183,19 +193,10 @@ public class ScheduleView extends Main implements SchedulerRefreshNeededListener
             schedulerMenuBar.addItem(pubIcon);
         }
 
-        //email notification setting - default is enabled/true
-        if(driverIdForView!=null){
-            MenuItem settingsEmailNotifications;
-            settingsEmailNotifications = settingsMenuItem.getSubMenu().addItem("Enable Email Notifications");
-            settingsEmailNotifications.setCheckable(true);
-            settingsEmailNotifications.setChecked(Config.getInstance().getEmailNotifications(driverIdForView.toString(), Boolean.TRUE));
-            settingsEmailNotifications.addClickListener(e -> {
-                Config.getInstance().setEmailNotifications(driverIdForView.toString(), !Config.getInstance().getEmailNotifications(driverIdForView.toString(), Boolean.TRUE));
-            });
-        }
         if(!isOnlyUser){
-            schedulerMenuBar.addItem(locationChoice.getMenuBar());
+            toolbar.add(locationChoice.getMenuBar());
         }
+
         return toolbar;
     }
 

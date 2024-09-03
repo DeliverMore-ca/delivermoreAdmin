@@ -1,6 +1,6 @@
 package ca.admin.delivermore.data.scheduler;
 
-import javax.annotation.Generated;
+import jakarta.annotation.Generated;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;

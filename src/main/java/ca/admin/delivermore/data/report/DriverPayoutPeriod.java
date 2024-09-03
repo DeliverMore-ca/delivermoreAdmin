@@ -14,7 +14,7 @@ import com.vaadin.flow.component.notification.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.io.File;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;

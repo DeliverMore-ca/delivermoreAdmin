@@ -23,6 +23,7 @@ import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -38,7 +39,7 @@ import com.vaadin.flow.router.Route;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.security.RolesAllowed;
+import jakarta.annotation.security.RolesAllowed;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.Calendar;
@@ -259,7 +260,7 @@ public class GiftCardView extends VerticalLayout {
                 detailsExporter.setButtonsAlignment(ButtonsAlignment.LEFT);
 
             }else{
-                Label noTransactions = new Label("There are no transactions for this Gift Card.");
+                NativeLabel noTransactions = new NativeLabel("There are no transactions for this Gift Card.");
                 div.setSizeFull();
                 div.add(noTransactions);
             }
@@ -332,6 +333,7 @@ public class GiftCardView extends VerticalLayout {
     private void refreshGrid() {
         //TODO: add filter to only show gc with balance
         giftCardList = giftCardRepository.findAllOrderByIssuedDesc();
+        log.info("GiftCardView: refreshGrid: count:" + giftCardList.size());
         grid.setItems(giftCardList);
         grid.getDataProvider().refreshAll();
     }

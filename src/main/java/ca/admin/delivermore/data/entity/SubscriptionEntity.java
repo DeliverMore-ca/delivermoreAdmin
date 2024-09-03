@@ -1,11 +1,10 @@
 package ca.admin.delivermore.data.entity;
 
-import ca.admin.delivermore.data.service.webpush.WebPushService;
 import nl.martijndwars.webpush.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 
 @Entity
 public class SubscriptionEntity {

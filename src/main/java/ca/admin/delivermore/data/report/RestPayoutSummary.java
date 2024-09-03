@@ -26,7 +26,7 @@ import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Anchor;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -215,7 +215,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         VerticalLayout externalVendorLayout = UIUtilities.getVerticalLayout();
         if(restPayoutFromExternalVendorList.size()>0){
             //Header
-            Label label = new Label("Invoice needed for external vendors");
+            NativeLabel label = new NativeLabel("Invoice needed for external vendors");
             label.getElement().getStyle().set("font-weight", "bold");
             externalVendorLayout.add(label);
             //List of external vendor invoices
@@ -241,7 +241,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         summaryDetailsContent.add(missingPOSDataDetails.buildMissingPOSData(periodStart,periodEnd));
         summaryDetailsContent.add(buildSummaryLayoutContentRestList());
         summaryDetailsContent.add(buildSummaryLayoutContentAdjustmentsList());
-        summaryDetails.setContent(summaryDetailsContent);
+        summaryDetails.add(summaryDetailsContent);
 
     }
 
@@ -321,7 +321,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
 
         VerticalLayout periodDocumentsContent = UIUtilities.getVerticalLayout();
         periodDocumentsContent.add(periodDocumentsToolbar);
-        periodDocuments.addContent(periodDocumentsContent);
+        periodDocuments.add(periodDocumentsContent);
         //add checkbox group of all documents
         periodDocumentsContent.add(periodDocumentsGrid);
         periodDocumentsGrid.setWidthFull();
@@ -569,7 +569,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         try {
             var mappingStrategy = new HeaderColumnNameMappingStrategy<RestPayoutItem>();
             mappingStrategy.setType(RestPayoutItem.class);
-            mappingStrategy.setColumnOrderOnWrite(new FixedOrderComparator(columnsUpper));
+            mappingStrategy.setColumnOrderOnWrite(new FixedOrderComparator<>(columnsUpper));
 
             Stream<RestPayoutItem> restPayoutItemStream = restPayoutItemList.stream();
             StringWriter output = new StringWriter();
@@ -595,7 +595,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         try {
             var mappingStrategy = new HeaderColumnNameMappingStrategy<RestAdjustment>();
             mappingStrategy.setType(RestAdjustment.class);
-            mappingStrategy.setColumnOrderOnWrite(new FixedOrderComparator(columnsUpperAdjustments));
+            mappingStrategy.setColumnOrderOnWrite(new FixedOrderComparator<>(columnsUpperAdjustments));
 
             Stream<RestAdjustment> restAdjustmentsStream = restAdjustmentList.stream();
             StringWriter output = new StringWriter();
@@ -745,7 +745,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         HorizontalLayout summaryDetailsSummaryFields2 = UIUtilities.getHorizontalLayout();
         String summaryTitle = "Payout Summary: " + periodStart + " - " + periodEnd;
         NumberField summaryOwing = UIUtilities.getNumberField("", getOwingToVendor());
-        Label summaryOwingLabel = new Label("Owing :");
+        NativeLabel summaryOwingLabel = new NativeLabel("Owing :");
         summaryDetailsSummaryOwing.add(summaryOwingLabel,summaryOwing);
         summaryDetailsSummaryHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         summaryDetailsSummaryHeader.setAlignItems(FlexComponent.Alignment.START);
@@ -784,7 +784,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         gridDetails.setSummaryText("Restaurant Payouts");
         gridDetails.setOpened(true);
         restGrid = new Grid<>();
-        gridDetails.setContent(restGrid);
+        gridDetails.add(restGrid);
         restGrid.setItems(restPayoutPeriodList);
         restGrid.setWidthFull();
         restGrid.setAllRowsVisible(true);
@@ -887,7 +887,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
         });
         periodAdustmentsToolbar.add(adjustmentsAddNew);
         adjustmentsLayout.add(periodAdustmentsToolbar);
-        gridDetails.setContent(adjustmentsLayout);
+        gridDetails.add(adjustmentsLayout);
         adjustmentsLayout.add(grid);
         grid.setWidthFull();
         grid.setAllRowsVisible(true);

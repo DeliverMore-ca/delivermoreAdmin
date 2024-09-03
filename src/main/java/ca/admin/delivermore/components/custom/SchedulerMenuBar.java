@@ -1,29 +1,21 @@
 package ca.admin.delivermore.components.custom;
 
-import ca.admin.delivermore.collector.data.Config;
 import com.vaadin.flow.component.HasText;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.MenuItem;
-import com.vaadin.flow.component.contextmenu.SubMenu;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.menubar.MenuBarVariant;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vaadin.stefan.fullcalendar.CalendarView;
-import org.vaadin.stefan.fullcalendar.CalendarViewImpl;
 import org.vaadin.stefan.fullcalendar.FullCalendar;
-import org.vaadin.stefan.fullcalendar.SchedulerView;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 
 public class SchedulerMenuBar extends MenuBar {
@@ -52,7 +44,7 @@ public class SchedulerMenuBar extends MenuBar {
             settingsIncludeAllDrivers.setCheckable(true);
             settingsIncludeAllDrivers.setChecked(false);
             settingsIncludeAllDrivers.addClickListener(e -> {
-                log.info("ClickListener IncludeAllDrivers");
+                //log.info("ClickListener IncludeAllDrivers");
                 scheduler.changeView(selectedView);
             });
         }
@@ -76,7 +68,9 @@ public class SchedulerMenuBar extends MenuBar {
         buttonDatePicker.getElement().appendChild(gotoDate.getElement());
         buttonDatePicker.addClickListener(event -> gotoDate.open());
         buttonDatePicker.setWidthFull();
+
         addItem(buttonDatePicker,"Go to selected date");
+
         addItem(VaadinIcon.ANGLE_RIGHT.create(),"Next", e -> scheduler.next());
         addItem("Today","Go to today's date", e -> scheduler.today());
     }

@@ -1,14 +1,11 @@
 package ca.admin.delivermore.views.report;
 
 import ca.admin.delivermore.collector.data.Utility;
-import ca.admin.delivermore.collector.data.entity.DriverPayoutEntity;
-import ca.admin.delivermore.collector.data.entity.TaskEntity;
 import ca.admin.delivermore.data.intuit.SalesReceipt;
 import ca.admin.delivermore.data.report.*;
 import ca.admin.delivermore.data.service.intuit.controller.QBOResult;
 import ca.admin.delivermore.views.MainLayout;
 import ca.admin.delivermore.views.UIUtilities;
-import ca.admin.delivermore.views.drivers.DriverPayoutView;
 import com.vaadin.componentfactory.DateRange;
 import com.vaadin.componentfactory.EnhancedDateRangePicker;
 import com.vaadin.flow.component.Component;
@@ -25,7 +22,6 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
-import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.LocalDateTimeRenderer;
 import com.vaadin.flow.router.PageTitle;
@@ -35,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vaadin.olli.FileDownloadWrapper;
 
-import javax.annotation.security.RolesAllowed;
+import jakarta.annotation.security.RolesAllowed;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;

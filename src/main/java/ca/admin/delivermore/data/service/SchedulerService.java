@@ -104,14 +104,14 @@ public class SchedulerService {
                         }else{
                             //only add up SHIFT type entries
                             if(schedulerEvent.getType().equals(Scheduler.EventType.SHIFT)){
-                                log.info("buildSchedulerResources: hours between " + schedulerEvent.getStart() + " and " + schedulerEvent.getEnd() + " = " + getHoursFormatted(getHoursBetween(schedulerEvent.getStart(), schedulerEvent.getEnd())));
+                                //log.info("buildSchedulerResources: hours between " + schedulerEvent.getStart() + " and " + schedulerEvent.getEnd() + " = " + getHoursFormatted(getHoursBetween(schedulerEvent.getStart(), schedulerEvent.getEnd())));
                                 hoursAsMillis += getHoursBetween(schedulerEvent.getStart(), schedulerEvent.getEnd());
                             }
                         }
                     }
                     if(hoursAsMillis>0L){
                         driverName += " (" + getHoursFormatted(hoursAsMillis) + ")";
-                        log.info("buildSchedulerResources: total hours for driver " + driverName + " = " + getHoursFormatted(hoursAsMillis));
+                        //log.info("buildSchedulerResources: total hours for driver " + driverName + " = " + getHoursFormatted(hoursAsMillis));
                     }
                 }
             }

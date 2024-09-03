@@ -9,7 +9,7 @@ import com.vaadin.flow.router.internal.DefaultErrorHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 
 @DefaultErrorHandler
 public class DMNoRouteHandler extends RouteNotFoundError {

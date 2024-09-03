@@ -2,8 +2,10 @@ package ca.admin.delivermore.data.entity;
 
 import ca.admin.delivermore.collector.data.tookan.Driver;
 
-import javax.persistence.*;
-import javax.validation.constraints.NotNull;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.JdbcTypeCode;
+
 import java.time.LocalDate;
 
 @Entity

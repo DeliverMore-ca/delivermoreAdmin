@@ -1,17 +1,19 @@
 package ca.admin.delivermore.data.entity;
 
+import java.sql.Types;
 import java.util.UUID;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.MappedSuperclass;
-import org.hibernate.annotations.Type;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.MappedSuperclass;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @MappedSuperclass
 public abstract class AbstractEntity {
 
     @Id
     @GeneratedValue
-    @Type(type = "uuid-char")
+    @JdbcTypeCode(Types.VARCHAR)
+    //@Type(type = "uuid-char")
     private UUID id;
 
     public UUID getId() {

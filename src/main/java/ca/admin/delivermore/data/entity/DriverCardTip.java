@@ -1,10 +1,7 @@
 package ca.admin.delivermore.data.entity;
 
-import ca.admin.delivermore.collector.data.tookan.Driver;
-
-import javax.persistence.*;
-import javax.validation.constraints.NotNull;
-import java.time.LocalDate;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 public class DriverCardTip {

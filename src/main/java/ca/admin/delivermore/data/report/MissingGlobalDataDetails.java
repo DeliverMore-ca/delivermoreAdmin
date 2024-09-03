@@ -65,7 +65,7 @@ public class MissingGlobalDataDetails {
             missingGlobalDataGrid.addColumn(TaskEntity::getTotalSale).setHeader("Total Sale");
             missingGlobalDataGrid.getColumns().forEach(col -> col.setAutoWidth(true));
             missingGlobalGridLayout.add(missingGlobalDataGrid);
-            missingGlobalDetails.setContent(missingGlobalGridLayout);
+            missingGlobalDetails.add(missingGlobalGridLayout);
         }
         return missingGlobalDetails;
     }

@@ -2,7 +2,6 @@ package ca.admin.delivermore.data.service.intuit.helper;
 
 import ca.admin.delivermore.collector.data.Config;
 import ca.admin.delivermore.data.service.intuit.domain.OAuth2Configuration;
-import com.vaadin.flow.server.VaadinSession;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpPost;
@@ -11,7 +10,7 @@ import org.apache.tomcat.util.codec.binary.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpSession;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

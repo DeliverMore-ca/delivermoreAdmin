@@ -1,9 +1,8 @@
 package ca.admin.delivermore.components.appnav;
 
-import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 
 //@CssImport("./components/brand-expression.css")
 public class BrandExpression extends Div {
@@ -11,7 +10,7 @@ public class BrandExpression extends Div {
     private static String CLASS_NAME = "brand-expression";
 
     private Image logo;
-    private Label title;
+    private NativeLabel title;
 
     public BrandExpression(String text) {
         setClassName(CLASS_NAME);
@@ -28,8 +27,8 @@ public class BrandExpression extends Div {
         add(logo, title);
     }
 
-    public static Label createH3Label(String text) {
-        Label label = new Label(text);
+    public static NativeLabel createH3Label(String text) {
+        NativeLabel label = new NativeLabel(text);
         //label.addClassName(LumoStyles.Heading.H3);
         label.addClassName(CLASS_NAME + "__Heading.H3");
         return label;

@@ -195,7 +195,7 @@ public class MissingPOSDataDetails {
                 });
 
                 missingGlobalGridLayout.add(missingPOSDataGrid);
-                missingGlobalDetails.setContent(missingGlobalGridLayout);
+                missingGlobalDetails.add(missingGlobalGridLayout);
             }
 
         }
