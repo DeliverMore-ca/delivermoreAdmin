@@ -141,7 +141,7 @@ public class RestPayoutPeriod implements Serializable {
     private void buildPayoutPeriodLayout() {
         mainLayout.removeAll();
         periodDetails = UIUtilities.getDetails();
-        periodDetails.setSizeUndefined();
+        //periodDetails.setSizeUndefined();
         mainLayout.add(periodDetails);
         VerticalLayout periodDetailsSummary = UIUtilities.getVerticalLayout();
         HorizontalLayout periodDetailsSummaryHeader = UIUtilities.getHorizontalLayout();

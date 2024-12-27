@@ -226,7 +226,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
 
     private Details buildRestSaleSummary() {
         Details restSaleSummaryDetails = UIUtilities.getDetails();
-        restSaleSummaryDetails.setSizeUndefined();
+        //restSaleSummaryDetails.setSizeUndefined();
         VerticalLayout summaryHeader = UIUtilities.getVerticalLayout();
         HorizontalLayout summaryHeaderRow = UIUtilities.getHorizontalLayout(false,true,false);
         VerticalLayout summaryHeaderCol1 = UIUtilities.getVerticalLayout();
@@ -396,7 +396,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
 
     private Details buildDriverPayoutSummary() {
         Details driverPayoutSummaryDetails = UIUtilities.getDetails();
-        driverPayoutSummaryDetails.setSizeUndefined();
+        //driverPayoutSummaryDetails.setSizeUndefined();
         HorizontalLayout summaryHeader = UIUtilities.getHorizontalLayout();
         NumberField driverCostField = UIUtilities.getNumberField("Cost",driverPayoutPeriod.getDriverCost());
         NumberField driverPayField = UIUtilities.getNumberField("Pay",driverPayoutPeriod.getDriverPay());

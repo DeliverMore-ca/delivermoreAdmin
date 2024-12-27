@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import static org.springframework.security.config.Customizer.withDefaults;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -39,17 +40,22 @@ public class SecurityConfiguration {
 
         @Override
         protected void configure(HttpSecurity http) throws Exception {
-            log.info("****SECURITY...here 1");
+            log.info("****SECURITY...here 1 - before new code for GC");
 
             //testing
             //http.rememberMe().alwaysRemember(false);
-            log.info("****SECURITY...here 1.1");
 
+            http.cors(withDefaults()).csrf(httpSecurityCsrfConfigurer -> httpSecurityCsrfConfigurer.ignoringRequestMatchers("/giftcardcreate/**"));
+            log.info("****SECURITY...here 1.1 - after new code for GC");
+            
             // Configure your static resources with public access before calling
             // super.configure(HttpSecurity) as it adds final anyRequest matcher
+
+            /*
             http.cors().and().csrf().disable().authorizeHttpRequests(auth -> {
                 auth.requestMatchers(new AntPathRequestMatcher("/giftcardcreate/**")).permitAll();
             });
+            */
 
             /* from sample
             http.authorizeHttpRequests(auth -> {
@@ -61,14 +67,14 @@ public class SecurityConfiguration {
 
              */
 
-            log.info("****SECURITY...here 1.2");
+            log.info("****SECURITY...here 1.2 - before super");
             super.configure(http);
-            log.info("****SECURITY...here 1.3");
-
+            log.info("****SECURITY...here 1.3 - after super");
+            
             // This is important to register your login view to the
             // view access checker mechanism:
             setLoginView(http, LoginView.class, LOGOUT_URL);
-            log.info("****SECURITY...here 1.4");
+            log.info("****SECURITY...here 1.4 - after setLoginView");
             //end testing
 
             //test 0 below

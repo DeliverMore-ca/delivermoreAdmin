@@ -231,7 +231,7 @@ public class RestPayoutSummary implements TaskListRefreshNeededListener {
      */
     private void buildSummaryLayout() {
         summaryDetails = UIUtilities.getDetails();
-        summaryDetails.setSizeUndefined();
+        //summaryDetails.setSizeUndefined();
         mainLayout.add(summaryDetails);
         summaryDetailsSummary = buildSummaryDetailsSummary();
         summaryDetailsContent = UIUtilities.getVerticalLayout();
