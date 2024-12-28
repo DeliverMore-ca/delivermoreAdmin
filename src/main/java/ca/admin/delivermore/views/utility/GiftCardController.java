@@ -16,9 +16,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
+// Note: need the following in application.properties   vaadin.exclude-urls=/api/**
 @AnonymousAllowed
 @RestController
-@RequestMapping("/giftcardcreate")
+@RequestMapping("/api")
 public class GiftCardController {
 
     private static final Logger log = LoggerFactory.getLogger(GiftCardController.class);
@@ -32,10 +33,11 @@ public class GiftCardController {
         this.giftCardRepository = giftCardRepository;
         this.environment = environment;
         this.emailService = emailService;
-        log.info("Constructor called:");
+        log.info("Api Constructor called:");
     }
 
-    @PostMapping
+    // handle anything /api/giftcardcreate
+    @PostMapping("giftcardcreate")
     public ResponseEntity<String> webHookHandler(@RequestBody String rawBody) {
         log.info("webHookHandler - GiftCardCreate: called. GiftCard: rawBody:" + rawBody);
 
@@ -54,7 +56,7 @@ public class GiftCardController {
             log.info("webHookHandler - GiftCardCreate: secret matched");
         }else{
             log.info("webHookHandler - GiftCardCreate: invalid call to giftcardcreate - not processing");
-            return new ResponseEntity<String >(rawBody, HttpStatus.UNAUTHORIZED);
+            return new ResponseEntity<String >(rawBody, HttpStatus.OK);
         }
 
         for (int i = 0; i < gcWordpress.getCount(); i++) {
