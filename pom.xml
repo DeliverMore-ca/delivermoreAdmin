@@ -395,6 +395,11 @@
                                 </goals>
                             </execution>
                         </executions>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <server.port>8081</server.port>
+                            </systemPropertyVariables>
+                        </configuration>
                     </plugin>
 
                     <!-- Runs the integration tests (*IT) after the server is started -->

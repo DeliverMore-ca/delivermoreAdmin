@@ -11,7 +11,7 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.grid.dataview.GridListDataView;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -40,7 +40,7 @@ public class TasksByCustomerView extends VerticalLayout {
     private List<CustomerTasks> customerTasksList = new ArrayList<>();
     private Grid<CustomerTasks> grid = new Grid<>();
     private GridListDataView<CustomerTasks> dataView;
-    private Label countLabel = new Label();
+    private NativeLabel countLabel = new NativeLabel();
     private Checkbox onlyGlobal = new Checkbox();
 
     private TextField searchField = new TextField();

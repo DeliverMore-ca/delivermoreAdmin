@@ -15,8 +15,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Anchor;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Main;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -47,7 +47,7 @@ public class TasksView extends Main {
     private Grid<TaskEntity> tasksGrid = new Grid<>(TaskEntity.class);
     private TextField filterText = new TextField();
 
-    private Label taskCount = new Label();
+    private NativeLabel taskCount = new NativeLabel();
     private EnhancedDateRangePicker rangeDatePicker = new EnhancedDateRangePicker("Select range:");
     private TaskDetailService service;
     private TaskForm form;

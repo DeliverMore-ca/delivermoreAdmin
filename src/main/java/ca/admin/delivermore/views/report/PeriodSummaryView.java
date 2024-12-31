@@ -14,8 +14,8 @@ import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Main;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -219,7 +219,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         topCOGSSummaryRow.add(totalSalesCOGSSummaryField,salesCOGSField,cogsReductionDelFeeFromExternalField);
 
         String label = "Gross Profit before Expenses (" + restPayoutSummary.getRestSaleSummary().getCount() + " sales):";
-        topSummary.add(new Label(label));
+        topSummary.add(new NativeLabel(label));
         topSummary.add(grossProfitField,topSummaryRow,topCOGSSummaryRow);
         return topSummary;
     }
@@ -235,7 +235,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         VerticalLayout summaryHeaderCol4 = UIUtilities.getVerticalLayout();
         VerticalLayout summaryHeaderCol5 = UIUtilities.getVerticalLayout();
 
-        Label salesLabel1 = new Label("Pass Thru");
+        NativeLabel salesLabel1 = new NativeLabel("Pass Thru");
         NumberField totalSaleField1= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getSaleSummaryPassThru().getSalesTotal());
         NumberField saleField1= UIUtilities.getNumberField("Sale",restPayoutSummary.getSaleSummaryPassThru().getSale());
         NumberField taxField1= UIUtilities.getNumberField("Tax",restPayoutSummary.getSaleSummaryPassThru().getTax());
@@ -244,7 +244,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         NumberField tipField1= UIUtilities.getNumberField("Tips",restPayoutSummary.getSaleSummaryPassThru().getTip());
         IntegerField countField1 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getSaleSummaryPassThru().getCount());
 
-        Label salesLabel2 = new Label("Other");
+        NativeLabel salesLabel2 = new NativeLabel("Other");
         NumberField totalSaleField2= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getSaleSummaryOther().getSalesTotal());
         NumberField saleField2= UIUtilities.getNumberField("Sale",restPayoutSummary.getSaleSummaryOther().getSale());
         NumberField taxField2= UIUtilities.getNumberField("Tax",restPayoutSummary.getSaleSummaryOther().getTax());
@@ -253,7 +253,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         NumberField tipField2= UIUtilities.getNumberField("Tips",restPayoutSummary.getSaleSummaryOther().getTip());
         IntegerField countField2 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getSaleSummaryOther().getCount());
 
-        Label salesLabel3 = new Label("All Sales");
+        NativeLabel salesLabel3 = new NativeLabel("All Sales");
         NumberField totalSaleField3= UIUtilities.getNumberField("Total Sale",restPayoutSummary.getRestSaleSummary().getSalesTotal());
         NumberField saleField3= UIUtilities.getNumberField("Sale",restPayoutSummary.getRestSaleSummary().getSale());
         NumberField taxField3= UIUtilities.getNumberField("Tax",restPayoutSummary.getRestSaleSummary().getTax());
@@ -262,13 +262,13 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         NumberField tipField3= UIUtilities.getNumberField("Tips",restPayoutSummary.getRestSaleSummary().getTip());
         IntegerField countField3 = UIUtilities.getIntegerField("Count", true,restPayoutSummary.getRestSaleSummary().getCount());
 
-        Label salesLabel4 = new Label("Funds");
+        NativeLabel salesLabel4 = new NativeLabel("Funds");
         NumberField totalFundsField= UIUtilities.getNumberField("Total Funds",restPayoutSummary.getRestSaleSummary().getFundsTotal());
         NumberField cashSaleField= UIUtilities.getNumberField("Cash Sale",restPayoutSummary.getRestSaleSummary().getCashSale());
         NumberField cardSaleField= UIUtilities.getNumberField("Card Sale",restPayoutSummary.getRestSaleSummary().getCardSale());
         NumberField onlineSaleField= UIUtilities.getNumberField("Online Sale",restPayoutSummary.getRestSaleSummary().getOnlineSale());
 
-        Label salesLabel5 = new Label("Other info");
+        NativeLabel salesLabel5 = new NativeLabel("Other info");
         NumberField salesMinusFundsTotalField = UIUtilities.getNumberField("Sales - Funds",restPayoutSummary.getRestSaleSummary().getSalesMinusFundsTotal());
         NumberField owingToVendorField = UIUtilities.getNumberField("Owing to vendors",restPayoutSummary.getOwingToVendor());
         NumberField cogsField = UIUtilities.getNumberField("COGS",restPayoutSummary.getCOGS());
@@ -278,7 +278,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         summaryHeaderCol4.add(salesLabel4,totalFundsField,cashSaleField,cardSaleField,onlineSaleField);
         summaryHeaderCol5.add(salesLabel5,salesMinusFundsTotalField,owingToVendorField,cogsField);
         String label = "Sales Summary (" + restPayoutSummary.getRestSaleSummary().getCount() + " sales):";
-        summaryHeader.add(new Label(label),summaryHeaderRow);
+        summaryHeader.add(new NativeLabel(label),summaryHeaderRow);
         summaryHeaderRow.add(summaryHeaderCol1,summaryHeaderCol2,summaryHeaderCol3,summaryHeaderCol4,summaryHeaderCol5);
         restSaleSummaryDetails.setSummary(summaryHeader);
         if(!restPayoutSummary.getRestSaleSummary().getSalesMinusFundsTotal().equals(0.0)){
@@ -404,7 +404,7 @@ public class PeriodSummaryView extends Main implements TaskListRefreshNeededList
         NumberField driverCashField = UIUtilities.getNumberField("Cash",driverPayoutPeriod.getDriverCash());
         NumberField driverTipsfield = UIUtilities.getNumberField("Tips",driverPayoutPeriod.getTip());
         NumberField driverPayoutField = UIUtilities.getNumberField("Payout",driverPayoutPeriod.getDriverPayout());
-        summaryHeader.add(new Label("Driver Cost:"),driverCostField,driverPayField,driverAdjField,driverCashField,driverTipsfield,driverPayoutField);
+        summaryHeader.add(new NativeLabel("Driver Cost:"),driverCostField,driverPayField,driverAdjField,driverCashField,driverTipsfield,driverPayoutField);
         driverPayoutSummaryDetails.setSummary(summaryHeader);
         Grid<DriverPayoutWeek> grid = new Grid<>();
         driverPayoutSummaryDetails.setContent(grid);

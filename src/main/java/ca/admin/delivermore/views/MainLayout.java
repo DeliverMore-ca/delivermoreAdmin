@@ -202,8 +202,7 @@ public class MainLayout extends AppLayout {
                 reports.addItem(customerTasksMenu);
             }
             if (checkAccess(TasksByDayAndWeekView.class)) {
-                SideNavItem tasksByDayAndWeekMenu = new SideNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, VaadinIcon.CALENDAR.create());
-                //SideNavItem tasksByDayAndWeekMenu = new SideNavItem("Tasks by Day/Week", TasksByDayAndWeekView.class, "la la-calendar");
+                SideNavItem tasksByDayAndWeekMenu = new SideNavItem("Tasks Report", TasksByDayAndWeekView.class, VaadinIcon.CALENDAR.create());
                 reports.addItem(tasksByDayAndWeekMenu);
             }
             if (checkAccess(PeriodSummaryView.class)) {

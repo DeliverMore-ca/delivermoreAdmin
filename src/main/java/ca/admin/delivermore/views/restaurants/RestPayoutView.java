@@ -5,8 +5,8 @@ import ca.admin.delivermore.data.report.RestPayoutSummary;
 import ca.admin.delivermore.views.MainLayout;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.datepicker.DatePicker;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Main;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -35,7 +35,7 @@ public class RestPayoutView extends Main {
 
     Boolean validStartDate = Boolean.TRUE;
     DatePicker periodStartDate = new DatePicker();
-    Label periodStartDateStatus = new Label();
+    NativeLabel periodStartDateStatus = new NativeLabel();
 
     RestPayoutSummary restPayoutSummary;
 

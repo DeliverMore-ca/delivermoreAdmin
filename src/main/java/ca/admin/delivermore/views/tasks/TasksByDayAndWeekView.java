@@ -4,18 +4,22 @@ import ca.admin.delivermore.collector.data.service.RestClientService;
 import ca.admin.delivermore.collector.data.service.TaskDetailRepository;
 import ca.admin.delivermore.data.report.TasksForMonth;
 import ca.admin.delivermore.data.report.TasksForWeek;
+import ca.admin.delivermore.data.service.TasksForWeekRepository;
 import ca.admin.delivermore.views.MainLayout;
+import ca.admin.delivermore.views.UIUtilities;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.HeaderRow;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.shared.Registration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,13 +33,14 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-@PageTitle("Tasks by Day and Week")
+@PageTitle("Tasks Report (by Day/Week/Month)")
 @Route(value = "tasksbydayandweek", layout = MainLayout.class)
 @RolesAllowed({"ADMIN","MANAGER"})
 public class TasksByDayAndWeekView extends VerticalLayout {
     private TaskDetailRepository taskDetailRepository;
     private RestClientService restClientService;
     private Grid<TasksForWeek> grid = new Grid<>();
+    private TasksForWeekRepository tasksForWeekRepository;
 
     private HeaderRow hRowRecords;
     private HeaderRow hRowAverages;
@@ -56,7 +61,7 @@ public class TasksByDayAndWeekView extends VerticalLayout {
 
 
     private Grid<TasksForMonth> gridMonths = new Grid<>();
-    private Label countLabel = new Label();
+    private NativeLabel countLabel = new NativeLabel();
     private List<TasksForWeek> tasksForWeeks = new ArrayList<>();
     private Logger log = LoggerFactory.getLogger(TasksByDayAndWeekView.class);
     private TasksForWeek recordTasksForWeek = new TasksForWeek(TasksForWeek.TasksForWeekType.RECORD);
@@ -69,9 +74,10 @@ public class TasksByDayAndWeekView extends VerticalLayout {
     private TasksForMonth averageTasksForMonth = new TasksForMonth(TasksForMonth.TasksForMonthType.AVERAGE);
 
     @Autowired
-    public TasksByDayAndWeekView(TaskDetailRepository taskDetailRepository, RestClientService restClientService) {
+    public TasksByDayAndWeekView(TaskDetailRepository taskDetailRepository, RestClientService restClientService, TasksForWeekRepository tasksForWeekRepository) {
         this.taskDetailRepository = taskDetailRepository;
         this.restClientService = restClientService;
+        this.tasksForWeekRepository = tasksForWeekRepository;
         //addClassNames("tasksbydayandweek-view");
         configureGrid();
         configureGridMonths();
@@ -159,7 +165,13 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         );
         fetchTasks.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, countLabel);
+        // Fetch all entities and show
+        final Button rebuildTasks = new Button("Rebuild All",
+                e -> rebuildAll()
+        );
+        rebuildTasks.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+
+        HorizontalLayout toolbar = new HorizontalLayout(fetchTasks, countLabel, rebuildTasks);
         toolbar.setAlignItems(FlexComponent.Alignment.BASELINE);
         toolbar.addClassName("toolbar");
         return toolbar;
@@ -167,16 +179,31 @@ public class TasksByDayAndWeekView extends VerticalLayout {
 
     private void updateList() {
         tasksForWeeks.clear();
-        LocalDate startDate = LocalDate.parse("2022-08-14");
+        
+        LocalDate defaultStartDate = LocalDate.parse("2022-08-14");
+        LocalDate maxDate = defaultStartDate;
+        
+        TasksForWeek maxTaskWeek = tasksForWeekRepository.findFirstByOrderByStartDateDesc();
+        if(maxTaskWeek==null) {
+            maxDate = defaultStartDate; 
+        }else{
+            maxDate = maxTaskWeek.getStartDate();
+        }
+        
+        LocalDate startDate = maxDate;
         LocalDate endDate = LocalDate.now();
-        //log.info("updateList: start:" + startDate + " end:" + endDate);
-        Long taskCount = 0L;
+        log.info("updateList: start:" + startDate + " end:" + endDate + " max:" + maxDate);
+        //Long taskCount = 0L;
 
         //build TasksForWeek list
         recordTasksForWeek.setStartDate(LocalDate.now());
         sumTasksForWeek.setStartDate(LocalDate.now());
+        //sumTasksForWeek.setWeekCount(0L);
+        sumTasksForWeek.clearCounters();
         averageTasksForWeek.setStartDate(LocalDate.now());
-        //TODO: set the max
+        //averageTasksForWeek.setWeekCount(0L);
+        averageTasksForWeek.clearCounters();
+
         TasksForWeek tasksForWeek = new TasksForWeek();
         LocalDate firstDate = startDate;
         for (LocalDate date = startDate; date.isBefore(endDate.plusDays(1)); date = date.plusDays(1)) {
@@ -186,10 +213,11 @@ public class TasksByDayAndWeekView extends VerticalLayout {
                 //log.info("updateList: processing date:" + date + " found SUNDAY");
                 //close out previous week if any
                 if (!date.equals(startDate)) {
-                    //log.info("updateList: processing date:" + date + " found SUNDAY that is NOT the start date");
+                    log.info("updateList: processing date:" + date + " found SUNDAY that is NOT the start date");
                     tasksForWeek.setStartDate(firstDate);
-                    recordTasksForWeek.addWeekIfHigher(tasksForWeek.getWeekCountLong());
-                    tasksForWeeks.add(tasksForWeek);
+                    
+                    //only full weeks get saved to the database
+                    tasksForWeekRepository.save(tasksForWeek);
                 }
                 //log.info("updateList: processing date:" + date + " found SUNDAY - creating new TasksForWeek");
                 tasksForWeek = new TasksForWeek();
@@ -206,16 +234,32 @@ public class TasksByDayAndWeekView extends VerticalLayout {
                 dayCount = taskDetailRepository.findTaskCountByDate(dateForRequest);
             }
             tasksForWeek.add(date, dayCount);
-            recordTasksForWeek.addIfHigher(date, dayCount);
-            sumTasksForWeek.addToSum(date,dayCount);
-            taskCount = taskCount + dayCount;
+            //taskCount = taskCount + dayCount;
         }
         //close out previous week if any
+        log.info("updateList: close out week for firstDate: " + firstDate);
         tasksForWeek.setStartDate(firstDate);
-        recordTasksForWeek.addWeekIfHigher(tasksForWeek.getWeekCountLong());
 
-        tasksForWeeks.add(tasksForWeek);
+        //save the last processed week
+        tasksForWeekRepository.save(tasksForWeek);
 
+        //load list from database
+        tasksForWeeks.addAll(tasksForWeekRepository.findAll());
+        
+        //Loop through list to get record and sums for all weeks
+        for (TasksForWeek item : tasksForWeeks) {
+            //week record
+            recordTasksForWeek.addWeekIfHigher(item.getWeekCountLong());
+            //record per day
+            recordTasksForWeek.addIfHigher(item);
+            
+            sumTasksForWeek.addToSum(item);
+            //log.info("updateList: item: " + item);
+            //log.info("updateList: sum : " + sumTasksForWeek);
+        }
+        
+        log.info("updateList: sumFinal: " + sumTasksForWeek);
+        
         averageTasksForWeek.setDowCountSunday(String.valueOf(roundUp(sumTasksForWeek.getDOWCountLongSunday(), sumTasksForWeek.getCounterSunday())));
         averageTasksForWeek.setDowCountMonday(String.valueOf(roundUp(sumTasksForWeek.getDOWCountLongMonday(), sumTasksForWeek.getCounterMonday())));
         averageTasksForWeek.setDowCountTuesday(String.valueOf(roundUp(sumTasksForWeek.getDOWCountLongTuesday(), sumTasksForWeek.getCounterTuesday())));
@@ -249,12 +293,12 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         grid.setItems(tasksForWeeks);
         grid.getDataProvider().refreshAll();
 
-        countLabel.setText("(" + taskCount + " tasks)");
+        countLabel.setText("(" + sumTasksForWeek.getWeekCount() + " tasks)");
 
         //get all the month counts
         tasksForMonths.clear();
         Integer monthInProcess = 0;
-        for (LocalDate date = startDate.withDayOfMonth(1); date.isBefore(endDate); date = date.plusMonths(1)) {
+        for (LocalDate date = defaultStartDate.withDayOfMonth(1); date.isBefore(endDate); date = date.plusMonths(1)) {
             monthInProcess++;
             Long monthCount = taskDetailRepository.findTaskCountByYearMonth(date.getYear(), date.getMonthValue());
             TasksForMonth tasksForMonth = new TasksForMonth();
@@ -280,22 +324,38 @@ public class TasksByDayAndWeekView extends VerticalLayout {
         hRowMonthAverage.getCell(colMonthName).setText(averageTasksForMonth.getMonthName());
         hRowMonthAverage.getCell(colMonthCount).setText(averageTasksForMonth.getMonthCount().toString());
 
-        //tasksForMonths.add(recordTasksForMonth);
-        //tasksForMonths.add(averageTasksForMonth);
-
         Collections.reverse(tasksForMonths);
-        /*
-        for (TasksForMonth taskMonth: tasksForMonths) {
-            log.info("updateList: month:" + taskMonth.getMonthName() + " count:" + taskMonth.getMonthCount());
-        }
-
-         */
         gridMonths.setItems(tasksForMonths);
         gridMonths.getDataProvider().refreshAll();
     }
 
     private long roundUp(long num, long divisor) {
         return (num + divisor - 1) / divisor;
+    }
+
+    private void rebuildAll() {
+        //warn user as will delete and rebuild all calculations
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("Rebuild task summary data?");
+        dialog.setText(
+                "Are you sure you want to rebuild and recalculte task summary. This operation may take a few minutes.");
+
+        dialog.setCancelable(true);
+        dialog.addCancelListener(event -> UIUtilities.showNotification("Rebuild All skipped"));
+
+        dialog.setConfirmText("Rebuild All");
+        dialog.setConfirmButtonTheme("error primary");
+        dialog.addConfirmListener(event -> rebuildAndUpdate());
+        
+        dialog.open();
+    }
+
+    private void rebuildAndUpdate() {
+        UIUtilities.showNotification("Rebuild All complete.");
+        //delete all records from TasksForWeek table
+        tasksForWeekRepository.deleteAll();
+        //then update the list
+        updateList();
     }
 
 }

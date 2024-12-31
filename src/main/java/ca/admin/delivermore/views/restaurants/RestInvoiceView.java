@@ -16,8 +16,8 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Main;
+import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -61,7 +61,7 @@ public class RestInvoiceView extends Main implements TaskListRefreshNeededListen
     private List<TaskEntity> entityList = new ArrayList<>();
     private TaskEditDialog taskEditDialog;
     private TaskDetailRepository taskDetailRepository;
-    private Label countLabel = new Label();
+    private NativeLabel countLabel = new NativeLabel();
 
 
 
