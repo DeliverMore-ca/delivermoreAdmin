@@ -318,8 +318,12 @@ public class GiftCardWordpress {
         if(select1==null) return 0.0;
         if(select1.equals("gc-25")) return 25.0;
         else if(select1.equals("gc-50")) return 50.0;
-        else if(select1.equals("gc-75")) return 50.0;
-        else if(select1.equals("gc-100")) return 50.0;
+        else if(select1.equals("gc-75")) return 75.0;
+        else if(select1.equals("gc-100")) return 100.0;
+        else if(select1.equals("gc-125")) return 125.0;
+        else if(select1.equals("gc-150")) return 150.0;
+        else if(select1.equals("gc-175")) return 175.0;
+        else if(select1.equals("gc-200")) return 200.0;
 
         return 0.0;
     }

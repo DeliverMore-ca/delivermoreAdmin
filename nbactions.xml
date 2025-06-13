@@ -19,6 +19,8 @@
                 <Env.VAPID_PRIVATE_KEY>pAa7Ub7z27R0L0BrYD9tWFFuSIX9xfS1YVFS98b0Th0</Env.VAPID_PRIVATE_KEY>
                 <Env.VAPID_PUBLIC_KEY>BOMxLTgvxMaukfbIyW8e8FUzarGJAdslEe9FJLn6VLLcyKVXHLAJaXP9NHifsRyjtsu4WDVAqMyacDmkoqEDNew</Env.VAPID_PUBLIC_KEY>
                 <Env.VAPID_SUBJECT>mailto:usjusjoken@gmail.com</Env.VAPID_SUBJECT>
+                <Env.DM_SSL_CERT>file:/keystore/keys/letsencrypt/cert.pem</Env.DM_SSL_CERT>
+                <Env.DM_SSL_CERT_PRIV>file:/keystore/keys/letsencrypt/privkey.pem</Env.DM_SSL_CERT_PRIV>
                 
                 
                 
@@ -53,6 +55,8 @@
                 <Env.VAPID_PRIVATE_KEY>pAa7Ub7z27R0L0BrYD9tWFFuSIX9xfS1YVFS98b0Th0</Env.VAPID_PRIVATE_KEY>
                 <Env.VAPID_PUBLIC_KEY>BOMxLTgvxMaukfbIyW8e8FUzarGJAdslEe9FJLn6VLLcyKVXHLAJaXP9NHifsRyjtsu4WDVAqMyacDmkoqEDNew</Env.VAPID_PUBLIC_KEY>
                 <Env.VAPID_SUBJECT>mailto:usjusjoken@gmail.com</Env.VAPID_SUBJECT>
+                <Env.DM_SSL_CERT>file:/keystore/keys/letsencrypt/cert.pem</Env.DM_SSL_CERT>
+                <Env.DM_SSL_CERT_PRIV>file:/keystore/keys/letsencrypt/privkey.pem</Env.DM_SSL_CERT_PRIV>
             </properties>
         </action>
     </actions>
